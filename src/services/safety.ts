@@ -8,6 +8,10 @@ export function createConfirmationToken(action: string, id: string): string {
 
 export function requireAllowedRconCommand(command: string): string {
   const trimmed = command.trim();
+  if (containsControlCharacter(trimmed)) {
+    throw new Error("RCON command cannot contain control characters");
+  }
+
   const [name] = trimmed.split(/\s+/, 1);
   const allowed = [...RCON_ALLOWLIST].some((allowedName) => allowedName.toLowerCase() === name.toLowerCase());
   if (!allowed) {
@@ -30,6 +34,9 @@ export function ensureBroadcastSafe(message: string): string {
   if (trimmed.length < 1) {
     throw new Error("Broadcast message cannot be empty");
   }
+  if (containsControlCharacter(trimmed)) {
+    throw new Error("Broadcast message cannot contain control characters");
+  }
   if (trimmed.length > 180) {
     throw new Error("Broadcast message must be 180 characters or fewer");
   }
@@ -38,4 +45,8 @@ export function ensureBroadcastSafe(message: string): string {
 
 export function buildBroadcastCommand(message: string): string {
   return `serverchat ${ensureBroadcastSafe(message)}`;
+}
+
+function containsControlCharacter(value: string): boolean {
+  return /[\u0000-\u001f\u007f]/.test(value);
 }

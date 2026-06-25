@@ -40,7 +40,7 @@ export const arkCommand = new SlashCommandBuilder()
           .setName("backup_id")
           .setDescription("Backup id from /ark backups")
           .setRequired(true)
-          .setMaxLength(80)
+          .setMaxLength(48)
       )
       .addStringOption((option) =>
         option.setName("reason").setDescription("Why the restore is needed").setMaxLength(160)

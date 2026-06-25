@@ -27,11 +27,13 @@ test("rcon commands are allowlisted", () => {
   assert.doesNotThrow(() => requireAllowedRconCommand("SaveWorld"));
   assert.equal(requireAllowedRconCommand("serverchat restart soon"), "serverchat restart soon");
   assert.throws(() => requireAllowedRconCommand("DestroyWildDinos"));
+  assert.throws(() => requireAllowedRconCommand("SaveWorld\nDestroyWildDinos"));
 });
 
 test("broadcasts are bounded", () => {
   assert.equal(ensureBroadcastSafe(" server restart in 5 "), "server restart in 5");
   assert.throws(() => ensureBroadcastSafe(""));
+  assert.throws(() => ensureBroadcastSafe("restart now\nDestroyWildDinos"));
   assert.throws(() => ensureBroadcastSafe("x".repeat(181)));
 });
 
