@@ -65,6 +65,8 @@ Before enabling real rollback automation:
 5. Confirm whether restore requires stopping the ARK server first.
 6. Run `/ark validate` with the real provider configuration.
 
+Use `docs/live-validation-runbook.md` for the step-by-step live server validation sequence.
+
 ## Design Notes
 
 The hosting company integration is behind `ServerProvider`. That keeps Discord command flows stable even if Legion Hosting uses a custom panel, TCAdmin, Pterodactyl, FTP/SFTP backups, or only RCON access.
