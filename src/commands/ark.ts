@@ -5,9 +5,11 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder
 } from "discord.js";
+import type { Logger } from "pino";
+import type { AppConfig } from "../config/env.js";
 import type { ServerProvider } from "../types.js";
 import { formatRelative, parseRollbackTime } from "../utils/time.js";
-import { audit } from "../services/audit.js";
+import { auditSafely } from "../services/audit.js";
 import { createActionId } from "../discord/action-ids.js";
 import { ensureBroadcastSafe } from "../services/safety.js";
 
@@ -86,52 +88,15 @@ export const arkCommand = new SlashCommandBuilder()
 
 export async function handleArkCommand(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
+  const handler = subcommandHandlers[subcommand];
 
-  if (subcommand === "status") {
-    await handleStatus(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "backup") {
-    await handleBackup(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "backups") {
-    await handleBackups(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "restore") {
-    await handleRestore(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "restart") {
-    await handleRestart(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "validate") {
-    await handleValidate(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "broadcast") {
-    await handleBroadcast(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "save") {
-    await handleSave(interaction, provider);
-    return;
-  }
-
-  if (subcommand === "rollback") {
-    await handleRollback(interaction, provider);
+  if (handler) {
+    await handler(interaction, provider, config, log);
     return;
   }
 
@@ -159,7 +124,9 @@ async function handleStatus(
 
 async function handleBackup(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().backup) {
     await interaction.reply({ content: "This provider cannot create backups.", ephemeral: true });
@@ -169,7 +136,9 @@ async function handleBackup(
   await interaction.deferReply({ ephemeral: true });
   const label = interaction.options.getString("label") ?? `Discord backup by ${interaction.user.username}`;
   const backup = await provider.createBackup(label);
-  await audit(interaction, `Backup created: ${backup.label} (${backup.id})`);
+  await auditSafely(interaction, config, `Backup created: ${backup.label} (${backup.id})`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
   await interaction.editReply(`Backup created: **${backup.label}** at ${backup.createdAt.toISOString()}.`);
 }
 
@@ -240,7 +209,9 @@ async function handleValidate(
 
 async function handleBroadcast(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().broadcast) {
     await interaction.reply({ content: "This provider cannot broadcast to the server.", ephemeral: true });
@@ -250,13 +221,17 @@ async function handleBroadcast(
   await interaction.deferReply({ ephemeral: true });
   const message = ensureBroadcastSafe(interaction.options.getString("message", true));
   await provider.broadcast(message);
-  await audit(interaction, `Broadcast sent by ${interaction.user.tag}: ${message}`);
+  await auditSafely(interaction, config, `Broadcast sent by ${interaction.user.tag}: ${message}`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
   await interaction.editReply("Broadcast sent.");
 }
 
 async function handleSave(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().save) {
     await interaction.reply({ content: "This provider cannot trigger a world save.", ephemeral: true });
@@ -265,7 +240,9 @@ async function handleSave(
 
   await interaction.deferReply({ ephemeral: true });
   await provider.saveWorld(`Requested by ${interaction.user.tag}`);
-  await audit(interaction, `SaveWorld requested by ${interaction.user.tag}`);
+  await auditSafely(interaction, config, `SaveWorld requested by ${interaction.user.tag}`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
   await interaction.editReply("SaveWorld requested.");
 }
 
@@ -314,3 +291,22 @@ function confirmRow(
       .setStyle(ButtonStyle.Secondary)
   );
 }
+
+type SubcommandHandler = (
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
+) => Promise<void>;
+
+const subcommandHandlers: Record<string, SubcommandHandler> = {
+  status: handleStatus,
+  backup: handleBackup,
+  backups: handleBackups,
+  restore: handleRestore,
+  restart: handleRestart,
+  validate: handleValidate,
+  broadcast: handleBroadcast,
+  save: handleSave,
+  rollback: handleRollback
+};

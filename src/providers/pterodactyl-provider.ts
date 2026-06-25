@@ -13,6 +13,7 @@ interface PterodactylBackupAttributes {
   name: string;
   bytes?: number;
   created_at: string;
+  is_locked?: boolean;
 }
 
 interface PterodactylBackupResponse {
@@ -26,6 +27,8 @@ export interface PterodactylProviderOptions {
   serverName: string;
   stopBeforeRestore: boolean;
   startAfterRestore: boolean;
+  pollIntervalMs?: number;
+  restoreTimeoutMs?: number;
 }
 
 export class PterodactylProvider implements ServerProvider {
@@ -97,15 +100,19 @@ export class PterodactylProvider implements ServerProvider {
   async restoreBackup(backupId: string, reason: string): Promise<void> {
     if (this.options.stopBeforeRestore) {
       await this.setPower("stop");
+      await this.waitForServerState("offline", "server to stop before restore");
     }
 
+    await this.waitForBackupUnlocked(backupId, "backup to become restorable");
     await this.request(`/api/client/servers/${this.options.serverId}/backups/${backupId}/restore`, {
       method: "POST",
       body: JSON.stringify({ truncate: true })
     });
+    await this.waitForBackupUnlocked(backupId, "restore to finish");
 
     if (this.options.startAfterRestore) {
       await this.setPower("start");
+      await this.waitForServerState("online", "server to start after restore");
     }
 
     void reason;
@@ -136,6 +143,38 @@ export class PterodactylProvider implements ServerProvider {
     });
   }
 
+  private async waitForServerState(expected: ServerStatus["state"], action: string): Promise<void> {
+    await this.pollUntil(action, async () => {
+      const status = await this.getStatus();
+      return status.state === expected;
+    });
+  }
+
+  private async waitForBackupUnlocked(backupId: string, action: string): Promise<void> {
+    await this.pollUntil(action, async () => {
+      const response = await this.request<PterodactylBackupResponse>(
+        `/api/client/servers/${this.options.serverId}/backups`
+      );
+      const backup = response.data.find((item) => item.attributes.uuid === backupId);
+      return backup ? backup.attributes.is_locked !== true : true;
+    });
+  }
+
+  private async pollUntil(action: string, check: () => Promise<boolean>): Promise<void> {
+    const timeoutMs = this.options.restoreTimeoutMs ?? 5 * 60_000;
+    const intervalMs = this.options.pollIntervalMs ?? 3_000;
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() <= deadline) {
+      if (await check()) {
+        return;
+      }
+      await sleep(intervalMs);
+    }
+
+    throw new Error(`Timed out waiting for ${action}.`);
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = new URL(path, this.options.baseUrl);
     const signal = init.signal ?? AbortSignal.timeout(15_000);
@@ -161,6 +200,12 @@ export class PterodactylProvider implements ServerProvider {
 
     return response.json() as Promise<T>;
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function mapBackup(attributes: PterodactylBackupAttributes): BackupSummary {

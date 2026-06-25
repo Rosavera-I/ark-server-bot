@@ -5,6 +5,7 @@ import { loadConfig } from "./config/env.js";
 import { handleButton } from "./discord/buttons.js";
 import { canUseArkCommand, rejectUnauthorized } from "./discord/permissions.js";
 import { createProvider } from "./providers/index.js";
+import { userSafeErrorMessage } from "./services/errors.js";
 
 const log = pino({ name: "ark-server-bot" });
 const config = loadConfig();
@@ -26,16 +27,16 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      await handleArkCommand(interaction, provider);
+      await handleArkCommand(interaction, provider, config, log);
       return;
     }
 
     if (interaction.isButton() && interaction.customId.startsWith("ark:")) {
-      await handleButton(interaction, provider);
+      await handleButton(interaction, provider, config, log);
     }
   } catch (error) {
     log.error({ error }, "Interaction failed");
-    const content = error instanceof Error ? error.message : "Unexpected bot error.";
+    const content = userSafeErrorMessage(error);
 
     if (interaction.isRepliable()) {
       if (interaction.deferred || interaction.replied) {
