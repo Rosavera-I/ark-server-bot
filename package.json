@@ -1,0 +1,29 @@
+{
+  "name": "ark-server-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Discord admin bot for a small ARK: Survival Ascended server group.",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/app.ts",
+    "register": "tsx src/deploy-commands.ts",
+    "test": "node --test --import tsx test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "pino": "^9.5.0",
+    "rcon-client": "^4.2.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
