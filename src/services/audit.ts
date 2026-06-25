@@ -1,4 +1,12 @@
-import type { ButtonInteraction, ChatInputCommandInteraction, TextBasedChannel } from "discord.js";
+import type { ButtonInteraction, ChatInputCommandInteraction } from "discord.js";
+
+type SendableChannel = {
+  send: (message: string) => Promise<unknown>;
+};
+
+function isSendableChannel(channel: unknown): channel is SendableChannel {
+  return typeof channel === "object" && channel !== null && "send" in channel && typeof channel.send === "function";
+}
 
 export async function audit(
   interaction: ChatInputCommandInteraction | ButtonInteraction,
@@ -8,7 +16,7 @@ export async function audit(
   if (!channelId) return;
 
   const channel = await interaction.client.channels.fetch(channelId);
-  if (!channel || !("send" in channel)) return;
+  if (!isSendableChannel(channel)) return;
 
-  await (channel as TextBasedChannel).send(`[ARK audit] ${message}`);
+  await channel.send(`[ARK audit] ${message}`);
 }
