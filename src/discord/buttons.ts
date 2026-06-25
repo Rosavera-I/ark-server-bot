@@ -40,9 +40,8 @@ export async function handleButton(
   if (parsed.action === "restart") {
     try {
       await provider.restart(`Confirmed by ${interaction.user.tag}`);
-    } catch (error) {
+    } finally {
       destructiveActionLock.release(lockKey);
-      throw error;
     }
     await auditSafely(interaction, config, `Restart confirmed by ${interaction.user.tag}`, (error) => {
       log?.warn({ error }, "Audit delivery failed");
@@ -60,9 +59,8 @@ export async function handleButton(
 
     try {
       await provider.restoreBackup(parsed.targetId, `Confirmed by ${interaction.user.tag}`);
-    } catch (error) {
+    } finally {
       destructiveActionLock.release(lockKey);
-      throw error;
     }
     await auditSafely(interaction, config, `${parsed.action} confirmed by ${interaction.user.tag}: ${parsed.targetId}`, (error) => {
       log?.warn({ error }, "Audit delivery failed");

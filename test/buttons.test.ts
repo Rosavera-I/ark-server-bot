@@ -60,6 +60,25 @@ test("duplicate restart confirmations are blocked while first action is active",
   assert.deepEqual(secondEdits[0], { content: "That ARK action is already in progress.", components: [] });
 });
 
+test("restart confirmation lock is released after successful provider work", async () => {
+  let restartCalls = 0;
+  const customId = createActionId({
+    action: "restart",
+    decision: "confirm",
+    userId: "sequential-restart"
+  });
+  const provider = providerStub({
+    restart: async () => {
+      restartCalls += 1;
+    }
+  });
+
+  await handleButton(buttonInteraction("sequential-restart", customId, []), provider, config);
+  await handleButton(buttonInteraction("sequential-restart", customId, []), provider, config);
+
+  assert.equal(restartCalls, 2);
+});
+
 function buttonInteraction(userId: string, customId: string, edits: unknown[]) {
   return {
     customId,
