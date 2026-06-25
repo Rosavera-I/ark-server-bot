@@ -21,7 +21,20 @@ export class MockProvider implements ServerProvider {
   }
 
   capabilities(): ProviderCapabilities {
-    return { status: true, restart: true, backup: true, rollback: true, rcon: false };
+    return {
+      status: true,
+      restart: true,
+      backup: true,
+      rollback: true,
+      rcon: false,
+      command: true,
+      broadcast: true,
+      save: true
+    };
+  }
+
+  async validateConnection(): Promise<string> {
+    return "Mock provider is ready.";
   }
 
   async getStatus(): Promise<ServerStatus> {
@@ -56,6 +69,18 @@ export class MockProvider implements ServerProvider {
   }
 
   async restoreBackup(): Promise<void> {
+    return;
+  }
+
+  async sendCommand(command: string): Promise<string> {
+    return `Mock command accepted: ${command}`;
+  }
+
+  async broadcast(): Promise<void> {
+    return;
+  }
+
+  async saveWorld(): Promise<void> {
     return;
   }
 }

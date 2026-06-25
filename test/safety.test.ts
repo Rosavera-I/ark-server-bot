@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildBroadcastCommand,
   createConfirmationToken,
   ensureBroadcastSafe,
   findNearestBackup,
@@ -24,6 +25,7 @@ test("nearest backup returns latest restorable backup before target", () => {
 
 test("rcon commands are allowlisted", () => {
   assert.doesNotThrow(() => requireAllowedRconCommand("SaveWorld"));
+  assert.equal(requireAllowedRconCommand("serverchat restart soon"), "serverchat restart soon");
   assert.throws(() => requireAllowedRconCommand("DestroyWildDinos"));
 });
 
@@ -31,4 +33,8 @@ test("broadcasts are bounded", () => {
   assert.equal(ensureBroadcastSafe(" server restart in 5 "), "server restart in 5");
   assert.throws(() => ensureBroadcastSafe(""));
   assert.throws(() => ensureBroadcastSafe("x".repeat(181)));
+});
+
+test("broadcast commands are bounded and formatted", () => {
+  assert.equal(buildBroadcastCommand(" restart in 5 "), "serverchat restart in 5");
 });

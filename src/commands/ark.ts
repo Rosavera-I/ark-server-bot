@@ -8,12 +8,17 @@ import {
 import type { ServerProvider } from "../types.js";
 import { formatRelative, parseRollbackTime } from "../utils/time.js";
 import { audit } from "../services/audit.js";
+import { createActionId } from "../discord/action-ids.js";
+import { ensureBroadcastSafe } from "../services/safety.js";
 
 export const arkCommand = new SlashCommandBuilder()
   .setName("ark")
   .setDescription("Manage the ARK: Survival Ascended server")
   .addSubcommand((subcommand) =>
     subcommand.setName("status").setDescription("Show server status and players")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand.setName("validate").setDescription("Check provider credentials and reachable operations")
   )
   .addSubcommand((subcommand) =>
     subcommand
@@ -24,12 +29,45 @@ export const arkCommand = new SlashCommandBuilder()
       )
   )
   .addSubcommand((subcommand) =>
+    subcommand.setName("backups").setDescription("List recent server backups")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("restore")
+      .setDescription("Restore an exact backup id after confirmation")
+      .addStringOption((option) =>
+        option
+          .setName("backup_id")
+          .setDescription("Backup id from /ark backups")
+          .setRequired(true)
+          .setMaxLength(80)
+      )
+      .addStringOption((option) =>
+        option.setName("reason").setDescription("Why the restore is needed").setMaxLength(160)
+      )
+  )
+  .addSubcommand((subcommand) =>
     subcommand
       .setName("restart")
       .setDescription("Restart the server after confirmation")
       .addStringOption((option) =>
         option.setName("reason").setDescription("Why the restart is needed").setMaxLength(160)
       )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("broadcast")
+      .setDescription("Send a short message to players")
+      .addStringOption((option) =>
+        option
+          .setName("message")
+          .setDescription("Message to send in-game")
+          .setRequired(true)
+          .setMaxLength(180)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand.setName("save").setDescription("Ask the server to save the world now")
   )
   .addSubcommand((subcommand) =>
     subcommand
@@ -62,8 +100,33 @@ export async function handleArkCommand(
     return;
   }
 
+  if (subcommand === "backups") {
+    await handleBackups(interaction, provider);
+    return;
+  }
+
+  if (subcommand === "restore") {
+    await handleRestore(interaction, provider);
+    return;
+  }
+
   if (subcommand === "restart") {
     await handleRestart(interaction, provider);
+    return;
+  }
+
+  if (subcommand === "validate") {
+    await handleValidate(interaction, provider);
+    return;
+  }
+
+  if (subcommand === "broadcast") {
+    await handleBroadcast(interaction, provider);
+    return;
+  }
+
+  if (subcommand === "save") {
+    await handleSave(interaction, provider);
     return;
   }
 
@@ -110,6 +173,45 @@ async function handleBackup(
   await interaction.editReply(`Backup created: **${backup.label}** at ${backup.createdAt.toISOString()}.`);
 }
 
+async function handleBackups(
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider
+): Promise<void> {
+  if (!provider.capabilities().backup) {
+    await interaction.reply({ content: "This provider cannot list panel backups.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const backups = (await provider.listBackups()).slice(0, 10);
+  const content = backups.length > 0
+    ? backups.map((backup) => `- \`${backup.id}\` - **${backup.label}** (${formatRelative(backup.createdAt)})`).join("\n")
+    : "No backups are visible to this provider.";
+  await interaction.editReply(content);
+}
+
+async function handleRestore(
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider
+): Promise<void> {
+  if (!provider.capabilities().rollback) {
+    await interaction.reply({ content: "This provider cannot restore backups.", ephemeral: true });
+    return;
+  }
+
+  const backupId = interaction.options.getString("backup_id", true);
+  const reason = interaction.options.getString("reason") ?? `Requested by ${interaction.user.tag}`;
+  await interaction.reply({
+    content: [
+      `Confirm exact backup restore: \`${backupId}\`.`,
+      `Reason: **${reason}**.`,
+      "This may overwrite the current world state."
+    ].join("\n"),
+    ephemeral: true,
+    components: [confirmRow("restore", interaction.user.id, backupId)]
+  });
+}
+
 async function handleRestart(
   interaction: ChatInputCommandInteraction,
   provider: ServerProvider
@@ -125,6 +227,46 @@ async function handleRestart(
     ephemeral: true,
     components: [confirmRow("restart", interaction.user.id)]
   });
+}
+
+async function handleValidate(
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider
+): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+  const message = await provider.validateConnection();
+  await interaction.editReply(`Provider \`${provider.name}\` validated: ${message}`);
+}
+
+async function handleBroadcast(
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider
+): Promise<void> {
+  if (!provider.capabilities().broadcast) {
+    await interaction.reply({ content: "This provider cannot broadcast to the server.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  const message = ensureBroadcastSafe(interaction.options.getString("message", true));
+  await provider.broadcast(message);
+  await audit(interaction, `Broadcast sent by ${interaction.user.tag}: ${message}`);
+  await interaction.editReply("Broadcast sent.");
+}
+
+async function handleSave(
+  interaction: ChatInputCommandInteraction,
+  provider: ServerProvider
+): Promise<void> {
+  if (!provider.capabilities().save) {
+    await interaction.reply({ content: "This provider cannot trigger a world save.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  await provider.saveWorld(`Requested by ${interaction.user.tag}`);
+  await audit(interaction, `SaveWorld requested by ${interaction.user.tag}`);
+  await interaction.editReply("SaveWorld requested.");
 }
 
 async function handleRollback(
@@ -152,18 +294,22 @@ async function handleRollback(
       alternatives ? `Alternatives:\n${alternatives}` : "",
       `Confirm restore for **${reason}**.`
     ].filter(Boolean).join("\n"),
-    components: [confirmRow(`rollback:${plan.selectedBackup.id}`, interaction.user.id)]
+    components: [confirmRow("rollback", interaction.user.id, plan.selectedBackup.id)]
   });
 }
 
-function confirmRow(action: string, userId: string): ActionRowBuilder<ButtonBuilder> {
+function confirmRow(
+  action: "restart" | "rollback" | "restore",
+  userId: string,
+  targetId?: string
+): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`ark:${action}:confirm:${userId}`)
+      .setCustomId(createActionId({ action, targetId, decision: "confirm", userId }))
       .setLabel("Confirm")
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId(`ark:${action}:cancel:${userId}`)
+      .setCustomId(createActionId({ action, targetId, decision: "cancel", userId }))
       .setLabel("Cancel")
       .setStyle(ButtonStyle.Secondary)
   );

@@ -1,16 +1,19 @@
 import type { BackupSummary } from "../types.js";
 
-export const RCON_ALLOWLIST = new Set(["SaveWorld", "ListPlayers", "GetGameLog"]);
+export const RCON_ALLOWLIST = new Set(["SaveWorld", "ListPlayers", "GetGameLog", "serverchat"]);
 
 export function createConfirmationToken(action: string, id: string): string {
   return `${action}:${id}`.toUpperCase().replace(/[^A-Z0-9:]/g, "");
 }
 
-export function requireAllowedRconCommand(command: string): void {
-  const [name] = command.trim().split(/\s+/, 1);
-  if (!RCON_ALLOWLIST.has(name)) {
+export function requireAllowedRconCommand(command: string): string {
+  const trimmed = command.trim();
+  const [name] = trimmed.split(/\s+/, 1);
+  const allowed = [...RCON_ALLOWLIST].some((allowedName) => allowedName.toLowerCase() === name.toLowerCase());
+  if (!allowed) {
     throw new Error(`RCON command '${name}' is not allowlisted`);
   }
+  return trimmed;
 }
 
 export function findNearestBackup(
@@ -31,4 +34,8 @@ export function ensureBroadcastSafe(message: string): string {
     throw new Error("Broadcast message must be 180 characters or fewer");
   }
   return trimmed;
+}
+
+export function buildBroadcastCommand(message: string): string {
+  return `serverchat ${ensureBroadcastSafe(message)}`;
 }

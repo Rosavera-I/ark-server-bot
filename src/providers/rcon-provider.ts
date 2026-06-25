@@ -6,6 +6,7 @@ import type {
   ServerProvider,
   ServerStatus
 } from "../types.js";
+import { buildBroadcastCommand, requireAllowedRconCommand } from "../services/safety.js";
 
 export interface RconProviderOptions {
   host: string;
@@ -20,7 +21,21 @@ export class RconProvider implements ServerProvider {
   constructor(private readonly options: RconProviderOptions) {}
 
   capabilities(): ProviderCapabilities {
-    return { status: true, restart: false, backup: false, rollback: false, rcon: true };
+    return {
+      status: true,
+      restart: false,
+      backup: false,
+      rollback: false,
+      rcon: true,
+      command: true,
+      broadcast: true,
+      save: true
+    };
+  }
+
+  async validateConnection(): Promise<string> {
+    const response = await this.command("ListPlayers");
+    return response.trim() || "RCON connected.";
   }
 
   async getStatus(): Promise<ServerStatus> {
@@ -57,6 +72,18 @@ export class RconProvider implements ServerProvider {
 
   async restoreBackup(): Promise<void> {
     throw new Error("RCON cannot restore backups. Use a panel/filesystem provider.");
+  }
+
+  async sendCommand(command: string): Promise<string> {
+    return this.command(requireAllowedRconCommand(command));
+  }
+
+  async broadcast(message: string): Promise<void> {
+    await this.command(buildBroadcastCommand(message));
+  }
+
+  async saveWorld(): Promise<void> {
+    await this.command("SaveWorld");
   }
 
   private async command(command: string): Promise<string> {

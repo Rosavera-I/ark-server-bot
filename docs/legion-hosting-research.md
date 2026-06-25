@@ -36,6 +36,10 @@ No reliable public API documentation was found from the current workspace search
 
 Build the Discord command layer now against `ServerProvider`, then implement the real provider after one account-level discovery pass. Do not enable real rollback automation until restore semantics are confirmed.
 
+The current bot implements a Pterodactyl-compatible provider because that is a common game-panel integration path and has public client API documentation. This is a compatibility adapter, not confirmed evidence that Legion Hosting itself uses Pterodactyl. The safest first real-server test is `/ark validate` with read-only expectations, followed by `/ark backups`, before trying any restore.
+
+If the panel is TCAdmin or custom, keep the Discord command layer unchanged and add a new provider implementation behind `ServerProvider`.
+
 ## Source Notes
 
 - `https://legionhosting.com` opened as a HugeDomains sale page for `LegionHosting.com`, not a game hosting panel.

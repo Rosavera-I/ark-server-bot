@@ -17,7 +17,9 @@ export function createProvider(config: AppConfig): ServerProvider {
       baseUrl: config.PTERODACTYL_BASE_URL,
       apiKey: config.PTERODACTYL_API_KEY,
       serverId: config.PTERODACTYL_SERVER_ID,
-      serverName: config.SERVER_NAME
+      serverName: config.SERVER_NAME,
+      stopBeforeRestore: config.PTERODACTYL_STOP_BEFORE_RESTORE,
+      startAfterRestore: config.PTERODACTYL_START_AFTER_RESTORE
     });
   }
 

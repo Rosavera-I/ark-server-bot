@@ -6,6 +6,7 @@ import type {
   ServerStatus
 } from "../types.js";
 import { selectRollbackBackup } from "./backup-selection.js";
+import { buildBroadcastCommand, requireAllowedRconCommand } from "../services/safety.js";
 
 interface PterodactylBackupAttributes {
   uuid: string;
@@ -23,6 +24,8 @@ export interface PterodactylProviderOptions {
   apiKey: string;
   serverId: string;
   serverName: string;
+  stopBeforeRestore: boolean;
+  startAfterRestore: boolean;
 }
 
 export class PterodactylProvider implements ServerProvider {
@@ -31,7 +34,22 @@ export class PterodactylProvider implements ServerProvider {
   constructor(private readonly options: PterodactylProviderOptions) {}
 
   capabilities(): ProviderCapabilities {
-    return { status: true, restart: true, backup: true, rollback: true, rcon: false };
+    return {
+      status: true,
+      restart: true,
+      backup: true,
+      rollback: true,
+      rcon: false,
+      command: true,
+      broadcast: true,
+      save: true
+    };
+  }
+
+  async validateConnection(): Promise<string> {
+    const status = await this.getStatus();
+    const backups = await this.listBackups();
+    return `Panel connected. Server is ${status.state}; ${backups.length} backups visible.`;
   }
 
   async getStatus(): Promise<ServerStatus> {
@@ -48,10 +66,7 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   async restart(reason: string): Promise<void> {
-    await this.request(`/api/client/servers/${this.options.serverId}/power`, {
-      method: "POST",
-      body: JSON.stringify({ signal: "restart" })
-    });
+    await this.setPower("restart");
     void reason;
   }
 
@@ -80,17 +95,53 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   async restoreBackup(backupId: string, reason: string): Promise<void> {
+    if (this.options.stopBeforeRestore) {
+      await this.setPower("stop");
+    }
+
     await this.request(`/api/client/servers/${this.options.serverId}/backups/${backupId}/restore`, {
       method: "POST",
       body: JSON.stringify({ truncate: true })
     });
+
+    if (this.options.startAfterRestore) {
+      await this.setPower("start");
+    }
+
     void reason;
+  }
+
+  async sendCommand(command: string): Promise<string> {
+    const safeCommand = requireAllowedRconCommand(command);
+    await this.request(`/api/client/servers/${this.options.serverId}/command`, {
+      method: "POST",
+      body: JSON.stringify({ command: safeCommand })
+    });
+    return "Command accepted by panel.";
+  }
+
+  async broadcast(message: string): Promise<void> {
+    await this.sendCommand(buildBroadcastCommand(message));
+  }
+
+  async saveWorld(reason: string): Promise<void> {
+    await this.sendCommand("SaveWorld");
+    void reason;
+  }
+
+  private async setPower(signal: "start" | "stop" | "restart"): Promise<void> {
+    await this.request(`/api/client/servers/${this.options.serverId}/power`, {
+      method: "POST",
+      body: JSON.stringify({ signal })
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = new URL(path, this.options.baseUrl);
+    const signal = init.signal ?? AbortSignal.timeout(15_000);
     const response = await fetch(url, {
       ...init,
+      signal,
       headers: {
         Authorization: `Bearer ${this.options.apiKey}`,
         Accept: "Application/vnd.pterodactyl.v1+json",
