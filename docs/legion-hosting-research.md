@@ -2,7 +2,7 @@
 
 ## Current Finding
 
-No reliable public API documentation was found from the current workspace searches. Treat Legion Hosting as an unknown provider until we confirm the actual customer panel and access methods from the account.
+No reliable public API documentation was found from the current workspace searches. `https://legionhosting.com` resolved to a parked HugeDomains sale page during research on 2026-06-25, so treat Legion Hosting as an unknown provider until we confirm the actual customer panel and access methods from the account.
 
 ## Likely Integration Paths
 
@@ -13,6 +13,7 @@ No reliable public API documentation was found from the current workspace search
 2. **Panel API**
    - Many game hosts run Pterodactyl, TCAdmin, or a custom panel.
    - If the panel exposes an API token page, the bot can wrap that provider-specific API.
+   - Pterodactyl-compatible panels expose client backup endpoints for listing, creating, downloading, deleting, and restoring backups.
 
 3. **RCON + SFTP/FTP**
    - RCON can handle status-ish commands, broadcasts, save commands, and some admin utilities.
@@ -34,3 +35,12 @@ No reliable public API documentation was found from the current workspace search
 ## Recommendation
 
 Build the Discord command layer now against `ServerProvider`, then implement the real provider after one account-level discovery pass. Do not enable real rollback automation until restore semantics are confirmed.
+
+## Source Notes
+
+- `https://legionhosting.com` opened as a HugeDomains sale page for `LegionHosting.com`, not a game hosting panel.
+- NETVPX's Pterodactyl Client API reference documents bearer-token auth, server management/power actions, file operations, and backup management availability in some installations: `https://pterodactyl-api-docs.netvpx.com/docs/api/client`.
+- Pterodactyl-compatible backup list/create/restore endpoints are documented as:
+  - `GET /api/client/servers/{server}/backups`
+  - `POST /api/client/servers/{server}/backups`
+  - `POST /api/client/servers/{server}/backups/{backup}/restore`

@@ -50,8 +50,9 @@ export class PterodactylProvider implements ServerProvider {
   async restart(reason: string): Promise<void> {
     await this.request(`/api/client/servers/${this.options.serverId}/power`, {
       method: "POST",
-      body: JSON.stringify({ signal: "restart", reason })
+      body: JSON.stringify({ signal: "restart" })
     });
+    void reason;
   }
 
   async createBackup(label: string): Promise<BackupSummary> {
@@ -81,8 +82,9 @@ export class PterodactylProvider implements ServerProvider {
   async restoreBackup(backupId: string, reason: string): Promise<void> {
     await this.request(`/api/client/servers/${this.options.serverId}/backups/${backupId}/restore`, {
       method: "POST",
-      body: JSON.stringify({ truncate: true, reason })
+      body: JSON.stringify({ truncate: true })
     });
+    void reason;
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -91,7 +93,7 @@ export class PterodactylProvider implements ServerProvider {
       ...init,
       headers: {
         Authorization: `Bearer ${this.options.apiKey}`,
-        Accept: "application/json",
+        Accept: "Application/vnd.pterodactyl.v1+json",
         "Content-Type": "application/json",
         ...(init.headers ?? {})
       }
