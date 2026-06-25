@@ -2,13 +2,21 @@
 
 ## Current Finding
 
-No reliable public API documentation was found from the current workspace searches. `https://legionhosting.com` resolved to a parked HugeDomains sale page during research on 2026-06-25, so treat Legion Hosting as an unknown provider until we confirm the actual customer panel and access methods from the account.
+Legion Hosting's ARK: Survival Ascended page is at `https://legionhosting.net/gservers/ark-survival-ascended?language=english`. Public marketing copy lists:
+
+- Full API access for automation/integration.
+- Live console support.
+- Scheduled restarts, backups, and commands.
+- File manager and database manager access.
+
+That is enough to keep the bot API-first, but it is not enough to assume an exact API shape. Treat Legion Hosting as an API-capable provider with account-specific discovery still required.
 
 ## Likely Integration Paths
 
 1. **Official API**
    - Best case: token-based API for status, backups, restore, restart, and console/RCON.
    - Cleanest bot implementation.
+   - Public Legion Hosting copy says API access exists, but does not publish endpoint details on the game page.
 
 2. **Panel API**
    - Many game hosts run Pterodactyl, TCAdmin, or a custom panel.
@@ -34,7 +42,7 @@ No reliable public API documentation was found from the current workspace search
 
 ## Recommendation
 
-Build the Discord command layer now against `ServerProvider`, then implement the real provider after one account-level discovery pass. Do not enable real rollback automation until restore semantics are confirmed.
+Build the Discord command layer now against `ServerProvider`, then validate the real provider after one account-level discovery pass. Do not enable real rollback automation until restore semantics are confirmed.
 
 The current bot implements a Pterodactyl-compatible provider because that is a common game-panel integration path and has public client API documentation. This is a compatibility adapter, not confirmed evidence that Legion Hosting itself uses Pterodactyl. The safest first real-server test is `/ark validate` with read-only expectations, followed by `/ark backups`, before trying any restore.
 
@@ -42,7 +50,7 @@ If the panel is TCAdmin or custom, keep the Discord command layer unchanged and 
 
 ## Source Notes
 
-- `https://legionhosting.com` opened as a HugeDomains sale page for `LegionHosting.com`, not a game hosting panel.
+- Legion Hosting ARK: Survival Ascended page: `https://legionhosting.net/gservers/ark-survival-ascended?language=english`.
 - NETVPX's Pterodactyl Client API reference documents bearer-token auth, server management/power actions, file operations, and backup management availability in some installations: `https://pterodactyl-api-docs.netvpx.com/docs/api/client`.
 - Pterodactyl-compatible backup list/create/restore endpoints are documented as:
   - `GET /api/client/servers/{server}/backups`
