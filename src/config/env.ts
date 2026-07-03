@@ -8,13 +8,21 @@ const envBoolean = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const optionalNonEmptyString = z.preprocess((value) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+}, z.string().min(1).optional());
+
 const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
-  DISCORD_GUILD_ID: z.string().min(1).optional(),
+  DISCORD_GUILD_ID: optionalNonEmptyString,
   DISCORD_AUDIT_CHANNEL_ID: z.string().optional(),
   SERVER_NAME: z.string().default("Friend ARK"),
   ARK_ADMIN_ROLE_IDS: z.string().optional().default(""),
+  ARK_SAVE_DIR: z.string().default("/ShooterGame/Saved/SavedArks/Ragnarok_WP"),
+  ARK_MAP_NAME: z.string().default("Ragnarok_WP"),
+  ARK_RESTORE_SAFETY_PREFIX: z.string().default("discord-restore-safety"),
   SERVER_PROVIDER: z.enum(["mock", "pterodactyl", "rcon"]).default("mock"),
   PTERODACTYL_BASE_URL: z.string().optional(),
   PTERODACTYL_API_KEY: z.string().optional(),

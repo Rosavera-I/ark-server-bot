@@ -24,3 +24,20 @@ test("loadConfig defaults restore lifecycle flags to true", () => {
   assert.equal(config.PTERODACTYL_STOP_BEFORE_RESTORE, true);
   assert.equal(config.PTERODACTYL_START_AFTER_RESTORE, true);
 });
+
+test("loadConfig treats empty optional guild id as unset", () => {
+  const config = loadConfig({
+    ...requiredEnv,
+    DISCORD_GUILD_ID: ""
+  });
+
+  assert.equal(config.DISCORD_GUILD_ID, undefined);
+});
+
+test("loadConfig defaults ARK save-file rollback settings", () => {
+  const config = loadConfig(requiredEnv);
+
+  assert.equal(config.ARK_SAVE_DIR, "/ShooterGame/Saved/SavedArks/Ragnarok_WP");
+  assert.equal(config.ARK_MAP_NAME, "Ragnarok_WP");
+  assert.equal(config.ARK_RESTORE_SAFETY_PREFIX, "discord-restore-safety");
+});

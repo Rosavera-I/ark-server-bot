@@ -5,7 +5,7 @@ Discord bot for trusted friends administering an ARK: Survival Ascended server.
 The first version is intentionally small:
 
 - Discord slash commands with role-gated destructive actions.
-- A provider interface for hosting-panel and RCON operations.
+- A provider interface for GPanel/Pterodactyl and RCON operations.
 - A mock provider for local testing before wiring real Legion Hosting access.
 - Safety prompts for rollback, restart, restore, broadcast, and RCON-style commands.
 
@@ -15,10 +15,10 @@ The first version is intentionally small:
 | --- | --- | --- |
 | `/ark status` | Show server state, players, and provider capabilities. | Read-only. |
 | `/ark validate` | Check provider credentials and reachable operations. | Read-only. |
-| `/ark backup` | Create a manual backup when the panel supports it. | Requires admin role, audit log. |
-| `/ark backups` | List recent backups and copy exact backup ids. | Requires admin role. |
-| `/ark restore backup_id:<id>` | Restore a specific backup id. | Requires admin role and button confirmation. |
-| `/ark rollback time:<duration>` | Pick the best backup at or before a requested time. | Requires admin role and button confirmation. |
+| `/ark backup` | Create a manual ARK save snapshot from the live map file. | Requires admin role, audit log. |
+| `/ark backups` | List recent ARK save snapshots and copy exact filenames. | Requires admin role. |
+| `/ark restore backup_id:<filename>` | Restore a specific ARK save snapshot filename. | Requires admin role and button confirmation. |
+| `/ark rollback time:<duration>` | Pick the best ARK save snapshot at or before a requested time. | Requires admin role and button confirmation. |
 | `/ark restart` | Restart after a confirmation flow. | Requires admin role and button confirmation. |
 | `/ark broadcast message:<text>` | Send a short message to online players. | Requires admin role, audit log. |
 | `/ark save` | Trigger `SaveWorld`. | Requires admin role, audit log. |
@@ -28,11 +28,13 @@ The first version is intentionally small:
 ```bash
 npm install
 cp .env.example .env
+npm run validate:provider
 npm run register
 npm run dev
 ```
 
-Use `SERVER_PROVIDER=mock` until Legion Hosting's panel/API details are confirmed.
+For Legion Hosting GPanel, use `SERVER_PROVIDER=pterodactyl` with `PTERODACTYL_BASE_URL=https://gpanel.legionhosting.net`.
+Set `ARK_ADMIN_ROLE_IDS` before inviting the bot broadly; destructive commands fail closed when no admin role is configured.
 
 ## Provider Modes
 
@@ -42,13 +44,15 @@ Local dry-run mode. Use this while registering Discord commands and testing role
 
 ### `pterodactyl`
 
-Use this if the Legion Hosting customer panel exposes a Pterodactyl-compatible client API token. Configure:
+Use this for Legion Hosting GPanel's Pterodactyl-compatible client API. Configure:
 
 - `PTERODACTYL_BASE_URL`
 - `PTERODACTYL_API_KEY`
 - `PTERODACTYL_SERVER_ID`
+- `ARK_SAVE_DIR`
+- `ARK_MAP_NAME`
 
-The bot uses the Pterodactyl client API for resources, power actions, backups, backup restore, and console commands.
+The bot uses the Pterodactyl client API for resources, power actions, file-manager save snapshots, binary file restore, and console commands. Normal rollback restores timestamped ARK map files such as `Ragnarok_WP_03.07.2026_14.47.11.ark`, not full panel backups.
 
 ### `rcon`
 
@@ -61,7 +65,7 @@ Before enabling real rollback automation:
 1. Log in to the actual Legion Hosting customer panel.
 2. Identify whether the panel is Pterodactyl, TCAdmin, or custom.
 3. Confirm whether an API/application token can be created.
-4. Confirm backups are visible and restorable through the API, not just manually in the panel.
+4. Confirm ARK save snapshots are visible in `ARK_SAVE_DIR`.
 5. Confirm whether restore requires stopping the ARK server first.
 6. Run `/ark validate` with the real provider configuration.
 
@@ -73,16 +77,14 @@ The hosting company integration is behind `ServerProvider`. That keeps Discord c
 
 Rollback is treated as destructive. The bot should always:
 
-1. Resolve the target backup.
+1. Resolve the target ARK save snapshot.
 2. Show exact snapshot metadata.
 3. Require requester-only button confirmation.
 4. Announce downtime before restore when broadcast support is enabled.
-5. Record who requested the operation and what was restored.
+5. Preserve the current live `.ark` as a timestamped safety file before overwrite.
+6. Record who requested the operation and what was restored.
 
 ## Open Questions
 
-- Does the actual Legion Hosting customer panel expose an official customer API?
-- What panel do they use for ARK: Survival Ascended?
-- Are backups available through API, panel-only actions, FTP/SFTP, or manual support?
 - Is RCON enabled and reachable from the bot host?
-- Does restore require the server to stop first, and how long does it take?
+- Should player `.arkprofile` / `.profilebak` restoration be added as a separate command flow?

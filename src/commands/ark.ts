@@ -25,24 +25,24 @@ export const arkCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName("backup")
-      .setDescription("Create a manual server backup")
+      .setDescription("Create a manual ARK save snapshot")
       .addStringOption((option) =>
-        option.setName("label").setDescription("Backup label").setMaxLength(80)
+        option.setName("label").setDescription("Snapshot label for the audit log").setMaxLength(80)
       )
   )
   .addSubcommand((subcommand) =>
-    subcommand.setName("backups").setDescription("List recent server backups")
+    subcommand.setName("backups").setDescription("List recent ARK save snapshots")
   )
   .addSubcommand((subcommand) =>
     subcommand
       .setName("restore")
-      .setDescription("Restore an exact backup id after confirmation")
+      .setDescription("Restore an exact ARK save snapshot after confirmation")
       .addStringOption((option) =>
         option
           .setName("backup_id")
-          .setDescription("Backup id from /ark backups")
+          .setDescription("Snapshot filename from /ark backups")
           .setRequired(true)
-          .setMaxLength(48)
+          .setMaxLength(96)
       )
       .addStringOption((option) =>
         option.setName("reason").setDescription("Why the restore is needed").setMaxLength(160)
@@ -74,7 +74,7 @@ export const arkCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName("rollback")
-      .setDescription("Restore a backup near a requested time after confirmation")
+      .setDescription("Restore a save snapshot near a requested time after confirmation")
       .addStringOption((option) =>
         option
           .setName("time")
@@ -129,17 +129,17 @@ async function handleBackup(
   log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().backup) {
-    await interaction.reply({ content: "This provider cannot create backups.", ephemeral: true });
+    await interaction.reply({ content: "This provider cannot create ARK save snapshots.", ephemeral: true });
     return;
   }
 
   await interaction.deferReply({ ephemeral: true });
-  const label = interaction.options.getString("label") ?? `Discord backup by ${interaction.user.username}`;
+  const label = interaction.options.getString("label") ?? `Discord save snapshot by ${interaction.user.username}`;
   const backup = await provider.createBackup(label);
-  await auditSafely(interaction, config, `Backup created: ${backup.label} (${backup.id})`, (error) => {
+  await auditSafely(interaction, config, `ARK save snapshot created: ${backup.label} (${backup.id})`, (error) => {
     log?.warn({ error }, "Audit delivery failed");
   });
-  await interaction.editReply(`Backup created: **${backup.label}** at ${backup.createdAt.toISOString()}.`);
+  await interaction.editReply(`ARK save snapshot created: \`${backup.id}\` at ${backup.createdAt.toISOString()}.`);
 }
 
 async function handleBackups(
@@ -147,15 +147,15 @@ async function handleBackups(
   provider: ServerProvider
 ): Promise<void> {
   if (!provider.capabilities().backup) {
-    await interaction.reply({ content: "This provider cannot list panel backups.", ephemeral: true });
+    await interaction.reply({ content: "This provider cannot list ARK save snapshots.", ephemeral: true });
     return;
   }
 
   await interaction.deferReply({ ephemeral: true });
   const backups = (await provider.listBackups()).slice(0, 10);
   const content = backups.length > 0
-    ? backups.map((backup) => `- \`${backup.id}\` - **${backup.label}** (${formatRelative(backup.createdAt)})`).join("\n")
-    : "No backups are visible to this provider.";
+    ? backups.map((backup) => `- \`${backup.id}\` - ${formatRelative(backup.createdAt)}${backup.sizeBytes === undefined ? "" : `, ${formatBytes(backup.sizeBytes)}`}`).join("\n")
+    : "No ARK save snapshots are visible to this provider.";
   await interaction.editReply(content);
 }
 
@@ -164,7 +164,7 @@ async function handleRestore(
   provider: ServerProvider
 ): Promise<void> {
   if (!provider.capabilities().rollback) {
-    await interaction.reply({ content: "This provider cannot restore backups.", ephemeral: true });
+    await interaction.reply({ content: "This provider cannot restore ARK save snapshots.", ephemeral: true });
     return;
   }
 
@@ -172,9 +172,9 @@ async function handleRestore(
   const reason = interaction.options.getString("reason") ?? `Requested by ${interaction.user.tag}`;
   await interaction.reply({
     content: [
-      `Confirm exact backup restore: \`${backupId}\`.`,
+      `Confirm exact ARK save snapshot restore: \`${backupId}\`.`,
       `Reason: **${reason}**.`,
-      "This may overwrite the current world state."
+      "This will stop the server, preserve the current live save as a safety file, and overwrite the live world save."
     ].join("\n"),
     ephemeral: true,
     components: [confirmRow("restore", interaction.user.id, backupId)]
@@ -251,7 +251,7 @@ async function handleRollback(
   provider: ServerProvider
 ): Promise<void> {
   if (!provider.capabilities().rollback) {
-    await interaction.reply({ content: "This provider cannot restore backups.", ephemeral: true });
+    await interaction.reply({ content: "This provider cannot restore ARK save snapshots.", ephemeral: true });
     return;
   }
 
@@ -267,12 +267,17 @@ async function handleRollback(
   await interaction.editReply({
     content: [
       `Requested rollback target: **${target.toISOString()}**.`,
-      `Selected backup: **${plan.selectedBackup.label}** (${formatRelative(plan.selectedBackup.createdAt)}).`,
+      `Selected snapshot: \`${plan.selectedBackup.id}\` (${formatRelative(plan.selectedBackup.createdAt)}).`,
       alternatives ? `Alternatives:\n${alternatives}` : "",
       `Confirm restore for **${reason}**.`
     ].filter(Boolean).join("\n"),
     components: [confirmRow("rollback", interaction.user.id, plan.selectedBackup.id)]
   });
+}
+
+function formatBytes(bytes: number): string {
+  const mib = bytes / 1024 / 1024;
+  return `${mib.toFixed(mib >= 10 ? 0 : 1)} MiB`;
 }
 
 function confirmRow(

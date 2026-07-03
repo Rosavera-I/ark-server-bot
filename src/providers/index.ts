@@ -18,6 +18,9 @@ export function createProvider(config: AppConfig): ServerProvider {
       apiKey: config.PTERODACTYL_API_KEY,
       serverId: config.PTERODACTYL_SERVER_ID,
       serverName: config.SERVER_NAME,
+      saveDirectory: config.ARK_SAVE_DIR,
+      mapName: config.ARK_MAP_NAME,
+      safetyPrefix: config.ARK_RESTORE_SAFETY_PREFIX,
       stopBeforeRestore: config.PTERODACTYL_STOP_BEFORE_RESTORE,
       startAfterRestore: config.PTERODACTYL_START_AFTER_RESTORE
     });

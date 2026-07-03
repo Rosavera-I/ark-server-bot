@@ -38,5 +38,5 @@ test("broadcasts are bounded", () => {
 });
 
 test("broadcast commands are bounded and formatted", () => {
-  assert.equal(buildBroadcastCommand(" restart in 5 "), "serverchat restart in 5");
+  assert.equal(buildBroadcastCommand(" restart in 5 "), "ServerChat restart in 5");
 });
