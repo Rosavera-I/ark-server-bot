@@ -26,6 +26,21 @@ interface PterodactylDownloadResponse {
   };
 }
 
+interface PterodactylResourcesResponse {
+  attributes: {
+    current_state?: string;
+    is_suspended?: boolean;
+    resources?: {
+      memory_bytes?: number;
+      cpu_absolute?: number;
+      disk_bytes?: number;
+      network_rx_bytes?: number;
+      network_tx_bytes?: number;
+      uptime?: number;
+    };
+  };
+}
+
 export interface PterodactylProviderOptions {
   baseUrl: string;
   apiKey: string;
@@ -65,15 +80,25 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   async getStatus(): Promise<ServerStatus> {
-    const response = await this.request<{ attributes: { current_state?: string } }>(
+    const response = await this.request<PterodactylResourcesResponse>(
       `/api/client/servers/${this.options.serverId}/resources`
     );
+    const resources = response.attributes.resources;
 
     return {
       name: this.options.serverName,
       state: normalizeState(response.attributes.current_state),
       players: [],
-      message: "Panel status only. Player list needs RCON or game query support."
+      details: [
+        response.attributes.is_suspended ? "Panel suspension: yes" : "Panel suspension: no",
+        resources?.cpu_absolute === undefined ? undefined : `CPU: ${resources.cpu_absolute.toFixed(1)}%`,
+        resources?.memory_bytes === undefined ? undefined : `Memory: ${formatBytes(resources.memory_bytes)}`,
+        resources?.disk_bytes === undefined ? undefined : `Disk: ${formatBytes(resources.disk_bytes)}`,
+        resources?.network_rx_bytes === undefined ? undefined : `Network in: ${formatBytes(resources.network_rx_bytes)}`,
+        resources?.network_tx_bytes === undefined ? undefined : `Network out: ${formatBytes(resources.network_tx_bytes)}`,
+        resources?.uptime === undefined ? undefined : `Uptime: ${formatDuration(resources.uptime)}`
+      ].filter((detail): detail is string => detail !== undefined),
+      message: "Panel status cannot reliably list players. Player names need direct RCON or game-query support."
     };
   }
 
@@ -160,6 +185,11 @@ export class PterodactylProvider implements ServerProvider {
 
   async saveWorld(reason: string): Promise<void> {
     await this.sendCommand("SaveWorld");
+    void reason;
+  }
+
+  async destroyWildDinos(reason: string): Promise<void> {
+    await this.sendCommand("DestroyWildDinos");
     void reason;
   }
 
@@ -310,6 +340,29 @@ function formatArkTimestamp(date: Date): string {
 
 function formatCompactTimestamp(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function formatBytes(bytes: number): string {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(unitIndex === 0 || value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDuration(milliseconds: number): string {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  return [
+    days > 0 ? `${days}d` : undefined,
+    hours > 0 ? `${hours}h` : undefined,
+    `${minutes}m`
+  ].filter(Boolean).join(" ");
 }
 
 function joinPath(directory: string, filename: string): string {

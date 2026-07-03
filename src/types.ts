@@ -16,6 +16,7 @@ export interface ServerStatus {
   name: string;
   state: ServerState;
   players: PlayerSummary[];
+  details?: string[];
   message?: string;
 }
 
@@ -49,4 +50,5 @@ export interface ServerProvider {
   sendCommand(command: string): Promise<string>;
   broadcast(message: string): Promise<void>;
   saveWorld(reason: string): Promise<void>;
+  destroyWildDinos(reason: string): Promise<void>;
 }

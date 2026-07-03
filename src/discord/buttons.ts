@@ -50,6 +50,19 @@ export async function handleButton(
     return;
   }
 
+  if (parsed.action === "dino-wipe") {
+    try {
+      await provider.destroyWildDinos(`Confirmed by ${interaction.user.tag}`);
+    } finally {
+      destructiveActionLock.release(lockKey);
+    }
+    await auditSafely(interaction, config, `Dino wipe confirmed by ${interaction.user.tag}`, (error) => {
+      log?.warn({ error }, "Audit delivery failed");
+    });
+    await interaction.editReply({ content: "Wild dino wipe requested.", components: [] });
+    return;
+  }
+
   if (parsed.action === "rollback" || parsed.action === "restore") {
     if (!parsed.targetId) {
       destructiveActionLock.release(lockKey);

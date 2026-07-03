@@ -22,6 +22,7 @@ The first version is intentionally small:
 | `/ark restart` | Restart after a confirmation flow. | Requires admin role and button confirmation. |
 | `/ark broadcast message:<text>` | Send a short message to online players. | Requires admin role, audit log. |
 | `/ark save` | Trigger `SaveWorld`. | Requires admin role, audit log. |
+| `/dino-wipe` | Run `DestroyWildDinos` after confirmation. | Requires admin role and button confirmation. |
 
 ## Setup
 
@@ -56,7 +57,29 @@ The bot uses the Pterodactyl client API for resources, power actions, file-manag
 
 ### `rcon`
 
-Use this when panel automation is not available but ARK RCON is exposed. RCON mode supports status, `SaveWorld`, broadcast, and allowlisted commands only. It cannot create or restore hosting-panel backups.
+RCON is optional for the Legion Hosting setup because GPanel already handles power, console commands, file-manager snapshots, and rollback. Add RCON when you want better live game-state checks, especially accurate online player lists from `ListPlayers`.
+
+Configure:
+
+- `RCON_HOST`
+- `RCON_PORT`
+- `RCON_PASSWORD`
+
+`RCON_PASSWORD` is usually the ARK `ServerAdminPassword`.
+
+For Legion Hosting, two things must match:
+
+1. `GameUserSettings.ini` must enable RCON:
+
+   ```ini
+   RCONEnabled=True
+   RCONPort=<allocated-rcon-port>
+   ServerAdminPassword=<same password used in .env>
+   ```
+
+2. GPanel must expose that same RCON port in the **Network** tab.
+
+If the config says `RCONPort=37015` but GPanel only shows a different default/game allocation, external RCON clients will fail with `ECONNREFUSED`. Add or request a dedicated RCON allocation, set `RCONPort` to that allocated port, restart the ARK server, then update `.env`.
 
 ## Legion Hosting Discovery Checklist
 
@@ -87,4 +110,3 @@ Rollback is treated as destructive. The bot should always:
 ## Open Questions
 
 - Is RCON enabled and reachable from the bot host?
-- Should player `.arkprofile` / `.profilebak` restoration be added as a separate command flow?

@@ -83,4 +83,8 @@ export class MockProvider implements ServerProvider {
   async saveWorld(): Promise<void> {
     return;
   }
+
+  async destroyWildDinos(): Promise<void> {
+    return;
+  }
 }

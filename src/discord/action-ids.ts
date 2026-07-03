@@ -1,4 +1,4 @@
-export type ArkButtonAction = "restart" | "rollback" | "restore";
+export type ArkButtonAction = "restart" | "rollback" | "restore" | "dino-wipe";
 export type ArkButtonDecision = "confirm" | "cancel";
 
 export interface ArkButtonActionId {
@@ -49,7 +49,7 @@ export function parseActionId(customId: string): ArkButtonActionId | undefined {
 }
 
 function isAction(value: string): value is ArkButtonAction {
-  return value === "restart" || value === "rollback" || value === "restore";
+  return value === "restart" || value === "rollback" || value === "restore" || value === "dino-wipe";
 }
 
 function isDecision(value: string): value is ArkButtonDecision {

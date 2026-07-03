@@ -25,7 +25,7 @@ In the Legion Hosting customer panel, record:
 - Server identifier used by the panel API.
 - ARK save folder path, map name, and live `.ark` filename.
 - Whether restore requires the server to stop first.
-- RCON host, port, and password availability.
+- RCON host, allocated public port, and password availability.
 
 For Legion Hosting GPanel, the validated API host is `https://gpanel.legionhosting.net`.
 
@@ -56,6 +56,34 @@ Verify:
 - `/ark validate` connects.
 - `/ark status` lists players or returns an empty player result.
 - `/ark broadcast message:"Discord bot smoke test"` works.
+
+### Legion Hosting RCON Allocation Check
+
+RCON requires both an ARK config setting and a public GPanel allocation.
+
+Check `ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini`:
+
+```ini
+RCONEnabled=True
+RCONPort=<allocated-rcon-port>
+ServerAdminPassword=<admin password>
+```
+
+Then check GPanel's **Network** tab. The same RCON port must be listed as an allocation. If the only visible allocation is the game/default port, external RCON clients will fail even when `RCONEnabled=True`.
+
+Common failure:
+
+```text
+ECONNREFUSED <server-ip>:<rcon-port>
+```
+
+That means the port is not listening publicly or is not allocated/open. Add/request a dedicated RCON allocation, set `RCONPort` to that allocation, restart the server, then set `.env`:
+
+```env
+RCON_HOST=<server ip>
+RCON_PORT=<allocated rcon port>
+RCON_PASSWORD=<ServerAdminPassword>
+```
 
 ## 4. Safe Write Check
 

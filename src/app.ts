@@ -1,6 +1,7 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import pino from "pino";
 import { handleArkCommand } from "./commands/ark.js";
+import { handleDinoWipeCommand } from "./commands/dino-wipe.js";
 import { loadConfig } from "./config/env.js";
 import { handleButton } from "./discord/buttons.js";
 import { canUseArkCommand, rejectUnauthorized } from "./discord/permissions.js";
@@ -21,13 +22,17 @@ client.once("ready", () => {
 
 client.on("interactionCreate", async (interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "ark") {
+    if (interaction.isChatInputCommand() && (interaction.commandName === "ark" || interaction.commandName === "dino-wipe")) {
       if (!canUseArkCommand(interaction, config)) {
         await rejectUnauthorized(interaction);
         return;
       }
 
-      await handleArkCommand(interaction, provider, config, log);
+      if (interaction.commandName === "ark") {
+        await handleArkCommand(interaction, provider, config, log);
+      } else {
+        await handleDinoWipeCommand(interaction, provider, config, log);
+      }
       return;
     }
 

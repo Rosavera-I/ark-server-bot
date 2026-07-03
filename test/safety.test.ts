@@ -26,7 +26,7 @@ test("nearest backup returns latest restorable backup before target", () => {
 test("rcon commands are allowlisted", () => {
   assert.doesNotThrow(() => requireAllowedRconCommand("SaveWorld"));
   assert.equal(requireAllowedRconCommand("serverchat restart soon"), "serverchat restart soon");
-  assert.throws(() => requireAllowedRconCommand("DestroyWildDinos"));
+  assert.equal(requireAllowedRconCommand("DestroyWildDinos"), "DestroyWildDinos");
   assert.throws(() => requireAllowedRconCommand("SaveWorld\nDestroyWildDinos"));
 });
 

@@ -8,11 +8,11 @@ export function canUseArkCommand(interaction: Interaction, config: AppConfig): b
     return true;
   }
 
-  if (interaction.commandName !== "ark") {
+  if (interaction.commandName !== "ark" && interaction.commandName !== "dino-wipe") {
     return true;
   }
 
-  if (safeSubcommands.has(interaction.options.getSubcommand())) {
+  if (interaction.commandName === "ark" && safeSubcommands.has(interaction.options.getSubcommand())) {
     return true;
   }
 
