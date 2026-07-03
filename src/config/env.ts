@@ -13,6 +13,11 @@ const optionalNonEmptyString = z.preprocess((value) => {
   return value;
 }, z.string().min(1).optional());
 
+const optionalPositiveInteger = z.preprocess((value) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+}, z.coerce.number().int().positive().optional());
+
 const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
@@ -29,6 +34,8 @@ const envSchema = z.object({
   PTERODACTYL_SERVER_ID: z.string().optional(),
   PTERODACTYL_STOP_BEFORE_RESTORE: envBoolean.default(true),
   PTERODACTYL_START_AFTER_RESTORE: envBoolean.default(true),
+  PTERODACTYL_RESTORE_TIMEOUT_MS: optionalPositiveInteger,
+  PTERODACTYL_POLL_INTERVAL_MS: optionalPositiveInteger,
   RCON_HOST: z.string().optional(),
   RCON_PORT: z.coerce.number().int().positive().default(27020),
   RCON_PASSWORD: z.string().optional()

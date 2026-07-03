@@ -201,10 +201,12 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   private async waitForServerState(expected: ServerStatus["state"], action: string): Promise<void> {
+    let lastState: ServerStatus["state"] | undefined;
     await this.pollUntil(action, async () => {
       const status = await this.getStatus();
+      lastState = status.state;
       return status.state === expected;
-    });
+    }, () => lastState ? `Last observed state: ${lastState}.` : undefined);
   }
 
   private async findSnapshot(backupId: string): Promise<BackupSummary> {
@@ -246,9 +248,9 @@ export class PterodactylProvider implements ServerProvider {
     });
   }
 
-  private async pollUntil(action: string, check: () => Promise<boolean>): Promise<void> {
-    const timeoutMs = this.options.restoreTimeoutMs ?? 5 * 60_000;
-    const intervalMs = this.options.pollIntervalMs ?? 3_000;
+  private async pollUntil(action: string, check: () => Promise<boolean>, detail?: () => string | undefined): Promise<void> {
+    const timeoutMs = this.options.restoreTimeoutMs ?? 20 * 60_000;
+    const intervalMs = this.options.pollIntervalMs ?? 5_000;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() <= deadline) {
@@ -258,7 +260,7 @@ export class PterodactylProvider implements ServerProvider {
       await sleep(intervalMs);
     }
 
-    throw new Error(`Timed out waiting for ${action}.`);
+    throw new Error(`Timed out waiting for ${action}. ${detail?.() ?? ""}`.trim());
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

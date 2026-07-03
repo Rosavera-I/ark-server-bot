@@ -104,6 +104,59 @@ test("restore preserves live save, writes selected snapshot, and restarts", asyn
   }
 });
 
+test("restore timeout reports the last observed server state", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+    const url = input.toString();
+    if (url.includes("/files/list")) {
+      return jsonResponse({
+        data: [{
+          attributes: {
+            name: "Ragnarok_WP_03.07.2026_14.47.11.ark",
+            size: 98_271_232,
+            is_file: true
+          }
+        }]
+      });
+    }
+    if (url.endsWith("/resources")) {
+      return jsonResponse({ attributes: { current_state: "stopping" } });
+    }
+    if (url.endsWith("/power")) {
+      return jsonResponse(undefined, 204);
+    }
+    if (url.endsWith("/command")) {
+      return jsonResponse(undefined, 204);
+    }
+
+    throw new Error(`unexpected fetch: ${url}`);
+  }) as typeof fetch;
+
+  try {
+    const provider = new PterodactylProvider({
+      baseUrl: "https://panel.example",
+      apiKey: "key",
+      serverId: "server",
+      serverName: "ARK",
+      saveDirectory: "/ShooterGame/Saved/SavedArks/Ragnarok_WP",
+      mapName: "Ragnarok_WP",
+      safetyPrefix: "discord-restore-safety",
+      stopBeforeRestore: true,
+      startAfterRestore: true,
+      pollIntervalMs: 0,
+      restoreTimeoutMs: 1
+    });
+
+    await assert.rejects(
+      () => provider.restoreBackup("Ragnarok_WP_03.07.2026_14.47.11.ark", "test"),
+      /Timed out waiting for server to stop before restore\. Last observed state: stopping\./
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(body === undefined ? undefined : JSON.stringify(body), { status });
 }
