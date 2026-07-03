@@ -9,7 +9,7 @@ import type { Logger } from "pino";
 import type { AppConfig } from "../config/env.js";
 import type { ServerProvider } from "../types.js";
 import { formatRelative, parseRollbackTime } from "../utils/time.js";
-import { auditSafely } from "../services/audit.js";
+import { audit, auditSafely } from "../services/audit.js";
 import { createActionId } from "../discord/action-ids.js";
 import { ensureBroadcastSafe } from "../services/safety.js";
 
@@ -105,7 +105,9 @@ export async function handleArkCommand(
 
 async function handleStatus(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   const status = await provider.getStatus();
@@ -114,12 +116,13 @@ async function handleStatus(
     ? status.players.map((player) => player.name).join(", ")
     : "none";
 
-  await interaction.editReply([
+  const content = [
     `**${status.name}** is **${status.state}** via \`${provider.name}\`.`,
     `Players: ${players}`,
     `Capabilities: ${Object.entries(capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(", ") || "none"}`,
     status.message ? `Note: ${status.message}` : ""
-  ].filter(Boolean).join("\n"));
+  ].filter(Boolean).join("\n");
+  await replyThroughAuditChannel(interaction, config, content, log);
 }
 
 async function handleBackup(
@@ -136,15 +139,19 @@ async function handleBackup(
   await interaction.deferReply({ ephemeral: true });
   const label = interaction.options.getString("label") ?? `Discord save snapshot by ${interaction.user.username}`;
   const backup = await provider.createBackup(label);
-  await auditSafely(interaction, config, `ARK save snapshot created: ${backup.label} (${backup.id})`, (error) => {
-    log?.warn({ error }, "Audit delivery failed");
-  });
-  await interaction.editReply(`ARK save snapshot created: \`${backup.id}\` at ${backup.createdAt.toISOString()}.`);
+  await replyThroughAuditChannel(
+    interaction,
+    config,
+    `ARK save snapshot created by ${interaction.user.tag}: \`${backup.id}\` at ${backup.createdAt.toISOString()}.`,
+    log
+  );
 }
 
 async function handleBackups(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().backup) {
     await interaction.reply({ content: "This provider cannot list ARK save snapshots.", ephemeral: true });
@@ -156,12 +163,14 @@ async function handleBackups(
   const content = backups.length > 0
     ? backups.map((backup) => `- \`${backup.id}\` - ${formatRelative(backup.createdAt)}${backup.sizeBytes === undefined ? "" : `, ${formatBytes(backup.sizeBytes)}`}`).join("\n")
     : "No ARK save snapshots are visible to this provider.";
-  await interaction.editReply(content);
+  await replyThroughAuditChannel(interaction, config, `Recent ARK save snapshots requested by ${interaction.user.tag}:\n${content}`, log);
 }
 
 async function handleRestore(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().rollback) {
     await interaction.reply({ content: "This provider cannot restore ARK save snapshots.", ephemeral: true });
@@ -170,6 +179,9 @@ async function handleRestore(
 
   const backupId = interaction.options.getString("backup_id", true);
   const reason = interaction.options.getString("reason") ?? `Requested by ${interaction.user.tag}`;
+  await auditSafely(interaction, config, `Restore confirmation requested by ${interaction.user.tag}: ${backupId}`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
   await interaction.reply({
     content: [
       `Confirm exact ARK save snapshot restore: \`${backupId}\`.`,
@@ -183,7 +195,9 @@ async function handleRestore(
 
 async function handleRestart(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().restart) {
     await interaction.reply({ content: "This provider cannot restart the server.", ephemeral: true });
@@ -191,6 +205,9 @@ async function handleRestart(
   }
 
   const reason = interaction.options.getString("reason") ?? `Requested by ${interaction.user.tag}`;
+  await auditSafely(interaction, config, `Restart confirmation requested by ${interaction.user.tag}: ${reason}`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
   await interaction.reply({
     content: `Confirm restart for **${reason}**.`,
     ephemeral: true,
@@ -200,11 +217,13 @@ async function handleRestart(
 
 async function handleValidate(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   const message = await provider.validateConnection();
-  await interaction.editReply(`Provider \`${provider.name}\` validated: ${message}`);
+  await replyThroughAuditChannel(interaction, config, `Provider \`${provider.name}\` validated by ${interaction.user.tag}: ${message}`, log);
 }
 
 async function handleBroadcast(
@@ -221,10 +240,7 @@ async function handleBroadcast(
   await interaction.deferReply({ ephemeral: true });
   const message = ensureBroadcastSafe(interaction.options.getString("message", true));
   await provider.broadcast(message);
-  await auditSafely(interaction, config, `Broadcast sent by ${interaction.user.tag}: ${message}`, (error) => {
-    log?.warn({ error }, "Audit delivery failed");
-  });
-  await interaction.editReply("Broadcast sent.");
+  await replyThroughAuditChannel(interaction, config, `Broadcast sent by ${interaction.user.tag}: ${message}`, log);
 }
 
 async function handleSave(
@@ -240,15 +256,14 @@ async function handleSave(
 
   await interaction.deferReply({ ephemeral: true });
   await provider.saveWorld(`Requested by ${interaction.user.tag}`);
-  await auditSafely(interaction, config, `SaveWorld requested by ${interaction.user.tag}`, (error) => {
-    log?.warn({ error }, "Audit delivery failed");
-  });
-  await interaction.editReply("SaveWorld requested.");
+  await replyThroughAuditChannel(interaction, config, `SaveWorld requested by ${interaction.user.tag}`, log);
 }
 
 async function handleRollback(
   interaction: ChatInputCommandInteraction,
-  provider: ServerProvider
+  provider: ServerProvider,
+  config: AppConfig,
+  log?: Pick<Logger, "warn">
 ): Promise<void> {
   if (!provider.capabilities().rollback) {
     await interaction.reply({ content: "This provider cannot restore ARK save snapshots.", ephemeral: true });
@@ -273,12 +288,36 @@ async function handleRollback(
     ].filter(Boolean).join("\n"),
     components: [confirmRow("rollback", interaction.user.id, plan.selectedBackup.id)]
   });
+  await auditSafely(interaction, config, `Rollback confirmation requested by ${interaction.user.tag}: ${plan.selectedBackup.id}`, (error) => {
+    log?.warn({ error }, "Audit delivery failed");
+  });
 }
 
 function formatBytes(bytes: number): string {
   const mib = bytes / 1024 / 1024;
   return `${mib.toFixed(mib >= 10 ? 0 : 1)} MiB`;
 }
+
+async function replyThroughAuditChannel(
+  interaction: ChatInputCommandInteraction,
+  config: AppConfig,
+  content: string,
+  log?: Pick<Logger, "warn">
+): Promise<void> {
+  if (!config.DISCORD_AUDIT_CHANNEL_ID) {
+    await interaction.editReply(content);
+    return;
+  }
+
+  try {
+    await audit(interaction, config, content);
+    await interaction.editReply(`Posted in <#${config.DISCORD_AUDIT_CHANNEL_ID}>.`);
+  } catch (error) {
+    log?.warn({ error }, "Audit delivery failed");
+    await interaction.editReply(`Could not post in the audit channel, so showing it here:\n${content}`);
+  }
+}
+
 
 function confirmRow(
   action: "restart" | "rollback" | "restore",
