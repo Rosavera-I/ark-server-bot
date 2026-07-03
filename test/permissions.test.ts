@@ -11,12 +11,15 @@ test("status and validate are allowed without admin roles", () => {
 
 test("destructive commands are rejected when no admin roles are configured", () => {
   assert.equal(canUseArkCommand(commandInteraction("restore"), configWithRoles([])), false);
+  assert.equal(canUseArkCommand(commandInteraction("dino-wipe", [], "dino-wipe"), configWithRoles([])), false);
 });
 
 test("destructive commands are allowed for configured admin roles", () => {
   const interaction = commandInteraction("restore", ["role-admin"]);
+  const dinoWipe = commandInteraction("dino-wipe", ["role-admin"], "dino-wipe");
 
   assert.equal(canUseArkCommand(interaction, configWithRoles(["role-admin"])), true);
+  assert.equal(canUseArkCommand(dinoWipe, configWithRoles(["role-admin"])), true);
 });
 
 function configWithRoles(roleIds: string[]) {
@@ -25,10 +28,10 @@ function configWithRoles(roleIds: string[]) {
   } as never;
 }
 
-function commandInteraction(subcommand: string, roles: string[] = []) {
+function commandInteraction(subcommand: string, roles: string[] = [], commandName = "ark") {
   return {
     isChatInputCommand: () => true,
-    commandName: "ark",
+    commandName,
     options: {
       getSubcommand: () => subcommand
     },

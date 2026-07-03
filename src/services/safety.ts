@@ -1,6 +1,6 @@
 import type { BackupSummary } from "../types.js";
 
-export const RCON_ALLOWLIST = new Set(["SaveWorld", "ListPlayers", "GetGameLog", "serverchat"]);
+export const RCON_ALLOWLIST = new Set(["SaveWorld", "ListPlayers", "GetGameLog", "serverchat", "DestroyWildDinos"]);
 
 export function createConfirmationToken(action: string, id: string): string {
   return `${action}:${id}`.toUpperCase().replace(/[^A-Z0-9:]/g, "");

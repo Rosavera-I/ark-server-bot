@@ -79,6 +79,27 @@ test("restart confirmation lock is released after successful provider work", asy
   assert.equal(restartCalls, 2);
 });
 
+test("dino wipe confirmation calls provider and clears components", async () => {
+  const edits: unknown[] = [];
+  let calls = 0;
+  const interaction = buttonInteraction("dino-wipe-user", createActionId({
+    action: "dino-wipe",
+    decision: "confirm",
+    userId: "dino-wipe-user"
+  }), edits);
+  const provider = providerStub({
+    destroyWildDinos: async () => {
+      calls += 1;
+    }
+  });
+
+  await handleButton(interaction, provider, config);
+
+  assert.equal(calls, 1);
+  assert.deepEqual(edits.at(-1), { content: "Wild dino wipe requested.", components: [] });
+});
+
+
 function buttonInteraction(userId: string, customId: string, edits: unknown[]) {
   return {
     customId,
@@ -127,6 +148,7 @@ function providerStub(overrides: Partial<ServerProvider>): ServerProvider {
     sendCommand: async () => "ok",
     broadcast: async () => undefined,
     saveWorld: async () => undefined,
+    destroyWildDinos: async () => undefined,
     ...overrides
   };
 }

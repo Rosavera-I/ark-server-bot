@@ -115,10 +115,13 @@ async function handleStatus(
   const players = status.players.length > 0
     ? status.players.map((player) => player.name).join(", ")
     : "none";
+  const latestSnapshot = capabilities.backup ? (await provider.listBackups())[0] : undefined;
 
   const content = [
     `**${status.name}** is **${status.state}** via \`${provider.name}\`.`,
     `Players: ${players}`,
+    ...(status.details ?? []),
+    latestSnapshot ? `Latest save snapshot: \`${latestSnapshot.id}\` (${formatBytes(latestSnapshot.sizeBytes ?? 0)})` : "",
     `Capabilities: ${Object.entries(capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(", ") || "none"}`,
     status.message ? `Note: ${status.message}` : ""
   ].filter(Boolean).join("\n");

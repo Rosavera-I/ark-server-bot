@@ -86,6 +86,10 @@ export class RconProvider implements ServerProvider {
     await this.command("SaveWorld");
   }
 
+  async destroyWildDinos(): Promise<void> {
+    await this.command("DestroyWildDinos");
+  }
+
   private async command(command: string): Promise<string> {
     const client = await Rcon.connect({
       host: this.options.host,
