@@ -44,7 +44,7 @@ export function ensureBroadcastSafe(message: string): string {
 }
 
 export function buildBroadcastCommand(message: string): string {
-  return `serverchat ${ensureBroadcastSafe(message)}`;
+  return `ServerChat ${ensureBroadcastSafe(message)}`;
 }
 
 function containsControlCharacter(value: string): boolean {

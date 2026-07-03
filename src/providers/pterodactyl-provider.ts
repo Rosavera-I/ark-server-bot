@@ -8,16 +8,22 @@ import type {
 import { selectRollbackBackup } from "./backup-selection.js";
 import { buildBroadcastCommand, requireAllowedRconCommand } from "../services/safety.js";
 
-interface PterodactylBackupAttributes {
-  uuid: string;
+interface PterodactylFileAttributes {
   name: string;
-  bytes?: number;
-  created_at: string;
-  is_locked?: boolean;
+  size: number;
+  is_file: boolean;
+  created_at?: string;
+  modified_at?: string;
 }
 
-interface PterodactylBackupResponse {
-  data: Array<{ attributes: PterodactylBackupAttributes }>;
+interface PterodactylFileListResponse {
+  data: Array<{ attributes: PterodactylFileAttributes }>;
+}
+
+interface PterodactylDownloadResponse {
+  attributes: {
+    url: string;
+  };
 }
 
 export interface PterodactylProviderOptions {
@@ -25,6 +31,9 @@ export interface PterodactylProviderOptions {
   apiKey: string;
   serverId: string;
   serverName: string;
+  saveDirectory: string;
+  mapName: string;
+  safetyPrefix: string;
   stopBeforeRestore: boolean;
   startAfterRestore: boolean;
   pollIntervalMs?: number;
@@ -52,7 +61,7 @@ export class PterodactylProvider implements ServerProvider {
   async validateConnection(): Promise<string> {
     const status = await this.getStatus();
     const backups = await this.listBackups();
-    return `Panel connected. Server is ${status.state}; ${backups.length} backups visible.`;
+    return `Panel connected. Server is ${status.state}; ${backups.length} ARK save snapshots visible.`;
   }
 
   async getStatus(): Promise<ServerStatus> {
@@ -74,23 +83,30 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   async createBackup(label: string): Promise<BackupSummary> {
-    const response = await this.request<
-      { attributes: PterodactylBackupAttributes } | { data: { attributes: PterodactylBackupAttributes } }
-    >(
-      `/api/client/servers/${this.options.serverId}/backups`,
-      {
-        method: "POST",
-        body: JSON.stringify({ name: label })
-      }
-    );
-    return mapBackup("data" in response ? response.data.attributes : response.attributes);
+    await this.sendCommand("SaveWorld");
+    await sleep(5_000);
+
+    const snapshotName = `${this.options.mapName}_${formatArkTimestamp(new Date())}_discord.ark`;
+    const snapshotPath = joinPath(this.options.saveDirectory, snapshotName);
+    const liveFile = await this.downloadFile(this.liveSavePath());
+    await this.writeFile(snapshotPath, liveFile);
+
+    return {
+      id: snapshotName,
+      label: label ? `${snapshotName} (${label})` : snapshotName,
+      createdAt: new Date(),
+      sizeBytes: liveFile.byteLength
+    };
   }
 
   async listBackups(): Promise<BackupSummary[]> {
-    const response = await this.request<PterodactylBackupResponse>(
-      `/api/client/servers/${this.options.serverId}/backups`
+    const response = await this.request<PterodactylFileListResponse>(
+      `/api/client/servers/${this.options.serverId}/files/list?directory=${encodeURIComponent(this.options.saveDirectory)}`
     );
-    return response.data.map((item) => mapBackup(item.attributes));
+    return response.data
+      .map((item) => mapSnapshotFile(item.attributes, this.options.mapName))
+      .filter((backup): backup is BackupSummary => backup !== undefined)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async planRollback(targetTime: Date): Promise<RollbackPlan> {
@@ -98,17 +114,28 @@ export class PterodactylProvider implements ServerProvider {
   }
 
   async restoreBackup(backupId: string, reason: string): Promise<void> {
+    const snapshot = await this.findSnapshot(backupId);
+    const currentStatus = await this.getStatus();
+
+    if (currentStatus.state === "online") {
+      await this.broadcast(`Server rollback starting: restoring ${snapshot.id}`);
+    }
+
     if (this.options.stopBeforeRestore) {
       await this.setPower("stop");
       await this.waitForServerState("offline", "server to stop before restore");
     }
 
-    await this.waitForBackupUnlocked(backupId, "backup to become restorable");
-    await this.request(`/api/client/servers/${this.options.serverId}/backups/${backupId}/restore`, {
-      method: "POST",
-      body: JSON.stringify({ truncate: true })
-    });
-    await this.waitForBackupUnlocked(backupId, "restore to finish");
+    const livePath = this.liveSavePath();
+    const safetyPath = joinPath(
+      this.options.saveDirectory,
+      `${this.options.safetyPrefix}-${formatCompactTimestamp(new Date())}-${this.options.mapName}.ark`
+    );
+    const liveFile = await this.downloadFile(livePath);
+    await this.writeFile(safetyPath, liveFile);
+
+    const snapshotFile = await this.downloadFile(joinPath(this.options.saveDirectory, snapshot.id));
+    await this.writeFile(livePath, snapshotFile);
 
     if (this.options.startAfterRestore) {
       await this.setPower("start");
@@ -150,13 +177,42 @@ export class PterodactylProvider implements ServerProvider {
     });
   }
 
-  private async waitForBackupUnlocked(backupId: string, action: string): Promise<void> {
-    await this.pollUntil(action, async () => {
-      const response = await this.request<PterodactylBackupResponse>(
-        `/api/client/servers/${this.options.serverId}/backups`
-      );
-      const backup = response.data.find((item) => item.attributes.uuid === backupId);
-      return backup ? backup.attributes.is_locked !== true : true;
+  private async findSnapshot(backupId: string): Promise<BackupSummary> {
+    const snapshots = await this.listBackups();
+    const snapshot = snapshots.find((backup) => backup.id === backupId);
+    if (!snapshot) {
+      throw new Error(`ARK save snapshot '${backupId}' was not found.`);
+    }
+    return snapshot;
+  }
+
+  private liveSavePath(): string {
+    return joinPath(this.options.saveDirectory, `${this.options.mapName}.ark`);
+  }
+
+  private async downloadFile(path: string): Promise<ArrayBuffer> {
+    const response = await this.request<PterodactylDownloadResponse>(
+      `/api/client/servers/${this.options.serverId}/files/download?file=${encodeURIComponent(path)}`
+    );
+    const fileResponse = await fetch(response.attributes.url, {
+      signal: AbortSignal.timeout(60_000)
+    });
+
+    if (!fileResponse.ok) {
+      const body = await fileResponse.text();
+      throw new Error(`Pterodactyl file download ${fileResponse.status}: ${body.slice(0, 400)}`);
+    }
+
+    return fileResponse.arrayBuffer();
+  }
+
+  private async writeFile(path: string, content: ArrayBuffer): Promise<void> {
+    await this.request(`/api/client/servers/${this.options.serverId}/files/write?file=${encodeURIComponent(path)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream"
+      },
+      body: Buffer.from(content)
     });
   }
 
@@ -208,13 +264,60 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-function mapBackup(attributes: PterodactylBackupAttributes): BackupSummary {
+function mapSnapshotFile(attributes: PterodactylFileAttributes, mapName: string): BackupSummary | undefined {
+  if (!attributes.is_file) return undefined;
+
+  const createdAt = parseArkSnapshotDate(attributes.name, mapName);
+  if (!createdAt) return undefined;
+
   return {
-    id: attributes.uuid,
+    id: attributes.name,
     label: attributes.name,
-    createdAt: new Date(attributes.created_at),
-    sizeBytes: attributes.bytes
+    createdAt,
+    sizeBytes: attributes.size
   };
+}
+
+function parseArkSnapshotDate(filename: string, mapName: string): Date | undefined {
+  const escapedMapName = mapName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = filename.match(
+    new RegExp(`^${escapedMapName}_(\\d{2})\\.(\\d{2})\\.(\\d{4})_(\\d{2})\\.(\\d{2})\\.(\\d{2})(?:_[A-Za-z0-9-]+)?\\.ark(?:rbf)?$`)
+  );
+  if (!match) return undefined;
+
+  const [, day, month, year, hour, minute, second] = match;
+  return new Date(Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  ));
+}
+
+function formatArkTimestamp(date: Date): string {
+  return [
+    pad(date.getUTCDate()),
+    pad(date.getUTCMonth() + 1),
+    date.getUTCFullYear()
+  ].join(".") + "_" + [
+    pad(date.getUTCHours()),
+    pad(date.getUTCMinutes()),
+    pad(date.getUTCSeconds())
+  ].join(".");
+}
+
+function formatCompactTimestamp(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function joinPath(directory: string, filename: string): string {
+  return `${directory.replace(/\/+$/, "")}/${filename.replace(/^\/+/, "")}`;
+}
+
+function pad(value: number): string {
+  return value.toString().padStart(2, "0");
 }
 
 function normalizeState(state: string | undefined): ServerStatus["state"] {

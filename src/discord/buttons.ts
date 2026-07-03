@@ -53,7 +53,7 @@ export async function handleButton(
   if (parsed.action === "rollback" || parsed.action === "restore") {
     if (!parsed.targetId) {
       destructiveActionLock.release(lockKey);
-      await interaction.editReply({ content: "Missing backup id for restore.", components: [] });
+      await interaction.editReply({ content: "Missing ARK save snapshot for restore.", components: [] });
       return;
     }
 
@@ -66,7 +66,7 @@ export async function handleButton(
       log?.warn({ error }, "Audit delivery failed");
     });
     await interaction.editReply({
-      content: `${parsed.action === "rollback" ? "Rollback" : "Restore"} requested for backup \`${parsed.targetId}\`.`,
+      content: `${parsed.action === "rollback" ? "Rollback" : "Restore"} requested for snapshot \`${parsed.targetId}\`.`,
       components: []
     });
     return;

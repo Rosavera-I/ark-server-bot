@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction, GuildMember, Interaction } from "discord.js";
 import type { AppConfig } from "../config/env.js";
 
-const safeSubcommands = new Set(["status"]);
+const safeSubcommands = new Set(["status", "validate"]);
 
 export function canUseArkCommand(interaction: Interaction, config: AppConfig): boolean {
   if (!interaction.isChatInputCommand()) {
@@ -17,7 +17,7 @@ export function canUseArkCommand(interaction: Interaction, config: AppConfig): b
   }
 
   if (config.adminRoleIds.size === 0) {
-    return true;
+    return false;
   }
 
   const member = interaction.member;
