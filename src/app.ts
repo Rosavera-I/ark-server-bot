@@ -8,7 +8,12 @@ import { canUseArkCommand, rejectUnauthorized } from "./discord/permissions.js";
 import { createProvider } from "./providers/index.js";
 import { userSafeErrorMessage } from "./services/errors.js";
 
-const log = pino({ name: "ark-server-bot" });
+const log = pino({
+  name: "ark-server-bot",
+  serializers: {
+    err: pino.stdSerializers.err
+  }
+});
 const config = loadConfig();
 const provider = createProvider(config);
 
@@ -40,7 +45,7 @@ client.on("interactionCreate", async (interaction) => {
       await handleButton(interaction, provider, config, log);
     }
   } catch (error) {
-    log.error({ error }, "Interaction failed");
+    log.error({ err: error }, "Interaction failed");
     const content = userSafeErrorMessage(error);
 
     if (interaction.isRepliable()) {

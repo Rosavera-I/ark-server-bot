@@ -5,8 +5,12 @@ export function userSafeErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  if (error instanceof Error && error.name === "AbortError") {
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
     return "The ARK request timed out. Check the provider status and try again.";
+  }
+
+  if (error instanceof Error && error.message.startsWith("Timed out waiting for")) {
+    return error.message;
   }
 
   return GENERIC_ERROR;

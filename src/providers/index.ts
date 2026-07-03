@@ -22,7 +22,9 @@ export function createProvider(config: AppConfig): ServerProvider {
       mapName: config.ARK_MAP_NAME,
       safetyPrefix: config.ARK_RESTORE_SAFETY_PREFIX,
       stopBeforeRestore: config.PTERODACTYL_STOP_BEFORE_RESTORE,
-      startAfterRestore: config.PTERODACTYL_START_AFTER_RESTORE
+      startAfterRestore: config.PTERODACTYL_START_AFTER_RESTORE,
+      restoreTimeoutMs: config.PTERODACTYL_RESTORE_TIMEOUT_MS,
+      pollIntervalMs: config.PTERODACTYL_POLL_INTERVAL_MS
     });
   }
 

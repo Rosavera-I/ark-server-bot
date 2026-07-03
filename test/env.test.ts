@@ -41,3 +41,14 @@ test("loadConfig defaults ARK save-file rollback settings", () => {
   assert.equal(config.ARK_MAP_NAME, "Ragnarok_WP");
   assert.equal(config.ARK_RESTORE_SAFETY_PREFIX, "discord-restore-safety");
 });
+
+test("loadConfig parses optional Pterodactyl polling settings", () => {
+  const config = loadConfig({
+    ...requiredEnv,
+    PTERODACTYL_RESTORE_TIMEOUT_MS: "1200000",
+    PTERODACTYL_POLL_INTERVAL_MS: "5000"
+  });
+
+  assert.equal(config.PTERODACTYL_RESTORE_TIMEOUT_MS, 1_200_000);
+  assert.equal(config.PTERODACTYL_POLL_INTERVAL_MS, 5_000);
+});
