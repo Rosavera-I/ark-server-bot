@@ -106,7 +106,17 @@ Run this only during an agreed maintenance window:
 5. Restore only that known-safe snapshot with `/ark restore backup_id:<filename>`.
 6. Confirm server state, world load, and player ability to join.
 
-If restore fails, do not retry blindly. Check the panel activity log and the timestamped `discord-restore-safety-*.ark` file preserved beside the live save.
+Expected timing:
+
+- ARK stop can take 20+ minutes while saving and may show high CPU.
+- File safety-copy and overwrite are usually much faster because the map save is roughly 100 MiB.
+- ARK start can take another 5-10+ minutes depending on map/mod load.
+
+`PTERODACTYL_RESTORE_TIMEOUT_MS` is a per-phase stop/start wait, not a total workflow timeout. Keep it high enough for the slowest observed ARK lifecycle phase.
+
+`/ark rollback` and `/ark restore` use the same restore engine. Rollback only differs by selecting a snapshot from a requested time before calling the exact restore path.
+
+If restore fails, do not retry blindly. Check the panel activity log and the timestamped `discord-restore-safety-*.ark` file preserved beside the live save. If a failure happens after the bot has issued `stop`, the bot attempts to start the server again before reporting the failure.
 
 ## 6. Rollback Enablement Criteria
 

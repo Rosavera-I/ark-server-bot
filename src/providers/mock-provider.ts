@@ -50,6 +50,10 @@ export class MockProvider implements ServerProvider {
     return;
   }
 
+  async start(): Promise<void> {
+    return;
+  }
+
   async createBackup(label: string): Promise<BackupSummary> {
     const backup = {
       id: `mock-${Date.now()}`,

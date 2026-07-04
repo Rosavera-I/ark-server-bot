@@ -34,10 +34,10 @@ const envSchema = z.object({
   PTERODACTYL_SERVER_ID: z.string().optional(),
   PTERODACTYL_STOP_BEFORE_RESTORE: envBoolean.default(true),
   PTERODACTYL_START_AFTER_RESTORE: envBoolean.default(true),
-  PTERODACTYL_RESTORE_TIMEOUT_MS: optionalPositiveInteger,
-  PTERODACTYL_POLL_INTERVAL_MS: optionalPositiveInteger,
+  PTERODACTYL_RESTORE_TIMEOUT_MS: optionalPositiveInteger.default(45 * 60_000),
+  PTERODACTYL_POLL_INTERVAL_MS: optionalPositiveInteger.default(5_000),
   RCON_HOST: z.string().optional(),
-  RCON_PORT: z.coerce.number().int().positive().default(27020),
+  RCON_PORT: optionalPositiveInteger.default(27020),
   RCON_PASSWORD: z.string().optional()
 });
 
