@@ -23,6 +23,7 @@ The first version is intentionally small:
 | `/ark broadcast message:<text>` | Send a short message to online players. | Requires admin role, audit log. |
 | `/ark save` | Trigger `SaveWorld`. | Requires admin role, audit log. |
 | `/dino-wipe` | Run `DestroyWildDinos` after confirmation. | Requires admin role and button confirmation. |
+| `/start` | Start the ARK server if it is offline. | Requires admin role, audit log. |
 
 ## Setup
 
@@ -54,6 +55,13 @@ Use this for Legion Hosting GPanel's Pterodactyl-compatible client API. Configur
 - `ARK_MAP_NAME`
 
 The bot uses the Pterodactyl client API for resources, power actions, file-manager save snapshots, binary file restore, and console commands. Normal rollback restores timestamped ARK map files such as `Ragnarok_WP_03.07.2026_14.47.11.ark`, not full panel backups.
+
+`/ark restore` and `/ark rollback` share the same restore engine. The only difference is selection:
+
+- `/ark restore backup_id:<filename>` restores the exact snapshot filename supplied by the admin.
+- `/ark rollback time:<duration>` first selects the nearest snapshot at or before the requested time, then uses the same restore engine.
+
+ARK shutdown can take 20+ minutes while saving at high CPU. `PTERODACTYL_RESTORE_TIMEOUT_MS` defaults to 45 minutes per stop/start wait. If a restore fails after the bot has already issued `stop`, the provider attempts to start the server again before reporting the failure so the server is not intentionally left offline by a timeout.
 
 ### `rcon`
 
@@ -105,7 +113,8 @@ Rollback is treated as destructive. The bot should always:
 3. Require requester-only button confirmation.
 4. Announce downtime before restore when broadcast support is enabled.
 5. Preserve the current live `.ark` as a timestamped safety file before overwrite.
-6. Record who requested the operation and what was restored.
+6. Attempt to restart the server if a timeout or provider error happens after stop was issued.
+7. Record who requested the operation and what was restored.
 
 ## Open Questions
 

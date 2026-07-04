@@ -12,14 +12,17 @@ test("status and validate are allowed without admin roles", () => {
 test("destructive commands are rejected when no admin roles are configured", () => {
   assert.equal(canUseArkCommand(commandInteraction("restore"), configWithRoles([])), false);
   assert.equal(canUseArkCommand(commandInteraction("dino-wipe", [], "dino-wipe"), configWithRoles([])), false);
+  assert.equal(canUseArkCommand(commandInteraction("start", [], "start"), configWithRoles([])), false);
 });
 
 test("destructive commands are allowed for configured admin roles", () => {
   const interaction = commandInteraction("restore", ["role-admin"]);
   const dinoWipe = commandInteraction("dino-wipe", ["role-admin"], "dino-wipe");
+  const start = commandInteraction("start", ["role-admin"], "start");
 
   assert.equal(canUseArkCommand(interaction, configWithRoles(["role-admin"])), true);
   assert.equal(canUseArkCommand(dinoWipe, configWithRoles(["role-admin"])), true);
+  assert.equal(canUseArkCommand(start, configWithRoles(["role-admin"])), true);
 });
 
 function configWithRoles(roleIds: string[]) {

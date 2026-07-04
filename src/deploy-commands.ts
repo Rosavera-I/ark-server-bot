@@ -2,10 +2,11 @@ import { REST, Routes } from "discord.js";
 import { loadConfig } from "./config/env.js";
 import { arkCommand } from "./commands/ark.js";
 import { dinoWipeCommand } from "./commands/dino-wipe.js";
+import { startCommand } from "./commands/start.js";
 
 const config = loadConfig();
 const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-const body = [arkCommand.toJSON(), dinoWipeCommand.toJSON()];
+const body = [arkCommand.toJSON(), dinoWipeCommand.toJSON(), startCommand.toJSON()];
 
 if (config.DISCORD_GUILD_ID) {
   await rest.put(

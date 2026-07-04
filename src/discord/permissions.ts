@@ -8,7 +8,7 @@ export function canUseArkCommand(interaction: Interaction, config: AppConfig): b
     return true;
   }
 
-  if (interaction.commandName !== "ark" && interaction.commandName !== "dino-wipe") {
+  if (interaction.commandName !== "ark" && interaction.commandName !== "dino-wipe" && interaction.commandName !== "start") {
     return true;
   }
 

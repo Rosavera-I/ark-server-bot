@@ -140,6 +140,7 @@ function providerStub(overrides: Partial<ServerProvider>): ServerProvider {
     }),
     validateConnection: async () => "ok",
     getStatus: async () => ({ name: "stub", state: "online", players: [] }),
+    start: async () => undefined,
     restart: async () => undefined,
     createBackup: async () => ({ id: "backup", label: "backup", createdAt: new Date() }),
     listBackups: async () => [],

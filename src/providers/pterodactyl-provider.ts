@@ -107,6 +107,12 @@ export class PterodactylProvider implements ServerProvider {
     void reason;
   }
 
+  async start(reason: string): Promise<void> {
+    await this.setPower("start");
+    await this.waitForServerState("online", "server to start");
+    void reason;
+  }
+
   async createBackup(label: string): Promise<BackupSummary> {
     await this.sendCommand("SaveWorld");
     await sleep(5_000);
@@ -141,30 +147,41 @@ export class PterodactylProvider implements ServerProvider {
   async restoreBackup(backupId: string, reason: string): Promise<void> {
     const snapshot = await this.findSnapshot(backupId);
     const currentStatus = await this.getStatus();
+    let stopIssued = false;
+    let startIssued = false;
 
-    if (currentStatus.state === "online") {
-      await this.broadcast(`Server rollback starting: restoring ${snapshot.id}`);
-    }
+    try {
+      if (currentStatus.state === "online") {
+        await this.broadcast(`Server rollback starting: restoring ${snapshot.id}`);
+      }
 
-    if (this.options.stopBeforeRestore) {
-      await this.setPower("stop");
-      await this.waitForServerState("offline", "server to stop before restore");
-    }
+      if (this.options.stopBeforeRestore) {
+        await this.setPower("stop");
+        stopIssued = true;
+        await this.waitForServerState("offline", "server to stop before restore");
+      }
 
-    const livePath = this.liveSavePath();
-    const safetyPath = joinPath(
-      this.options.saveDirectory,
-      `${this.options.safetyPrefix}-${formatCompactTimestamp(new Date())}-${this.options.mapName}.ark`
-    );
-    const liveFile = await this.downloadFile(livePath);
-    await this.writeFile(safetyPath, liveFile);
+      const livePath = this.liveSavePath();
+      const safetyPath = joinPath(
+        this.options.saveDirectory,
+        `${this.options.safetyPrefix}-${formatCompactTimestamp(new Date())}-${this.options.mapName}.ark`
+      );
+      const liveFile = await this.downloadFile(livePath);
+      await this.writeFile(safetyPath, liveFile);
 
-    const snapshotFile = await this.downloadFile(joinPath(this.options.saveDirectory, snapshot.id));
-    await this.writeFile(livePath, snapshotFile);
+      const snapshotFile = await this.downloadFile(joinPath(this.options.saveDirectory, snapshot.id));
+      await this.writeFile(livePath, snapshotFile);
 
-    if (this.options.startAfterRestore) {
-      await this.setPower("start");
-      await this.waitForServerState("online", "server to start after restore");
+      if (this.options.startAfterRestore) {
+        await this.setPower("start");
+        startIssued = true;
+        await this.waitForServerState("online", "server to start after restore");
+      }
+    } catch (error) {
+      if (this.options.startAfterRestore && stopIssued && !startIssued) {
+        await this.tryStartAfterFailedRestore(error);
+      }
+      throw error;
     }
 
     void reason;
@@ -198,6 +215,41 @@ export class PterodactylProvider implements ServerProvider {
       method: "POST",
       body: JSON.stringify({ signal })
     });
+  }
+
+  private async startAndWait(action: string): Promise<void> {
+    await this.setPower("start");
+    await this.waitForServerState("online", action);
+  }
+
+  private async tryStartAfterFailedRestore(originalError: unknown): Promise<void> {
+    let lastState: ServerStatus["state"] | undefined;
+
+    try {
+      await this.pollUntil("server to become restartable after failed restore", async () => {
+        const status = await this.getStatus();
+        lastState = status.state;
+
+        if (status.state === "online") {
+          return true;
+        }
+
+        if (status.state === "offline") {
+          await this.startAndWait("server to recover after failed restore");
+          return true;
+        }
+
+        return false;
+      }, () => lastState ? `Last observed state: ${lastState}.` : undefined);
+    } catch (recoveryError) {
+      throw new Error(
+        [
+          errorMessage(originalError),
+          "Recovery start also failed after the restore flow issued a stop.",
+          errorMessage(recoveryError)
+        ].join(" ")
+      );
+    }
   }
 
   private async waitForServerState(expected: ServerStatus["state"], action: string): Promise<void> {
@@ -294,6 +346,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function mapSnapshotFile(attributes: PterodactylFileAttributes, mapName: string): BackupSummary | undefined {

@@ -58,6 +58,10 @@ export class RconProvider implements ServerProvider {
     throw new Error("RCON provider does not support safe restart yet.");
   }
 
+  async start(): Promise<void> {
+    throw new Error("RCON provider cannot start a stopped server.");
+  }
+
   async createBackup(): Promise<BackupSummary> {
     throw new Error("RCON cannot create hosting-panel backups.");
   }

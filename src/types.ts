@@ -42,6 +42,7 @@ export interface ServerProvider {
   capabilities(): ProviderCapabilities;
   validateConnection(): Promise<string>;
   getStatus(): Promise<ServerStatus>;
+  start(reason: string): Promise<void>;
   restart(reason: string): Promise<void>;
   createBackup(label: string): Promise<BackupSummary>;
   listBackups(): Promise<BackupSummary[]>;
